@@ -106,6 +106,13 @@ test('preflight F-PLN holds planned levels until each step without changing airb
     legs[1].hasPilotEnteredAltitudeConstraint = () => true;
     assert.equal(rows()[0].altitudeConstraint.trim(), '36940');
     assert.match(rows()[1].altitudeConstraint, /36950/);
+    predictions.get(6).altitude = 26440;
+    const afterTod = legs.map((wp, fpIndex) => ({ wp, fpIndex, inAlternate: false }));
+    afterTod.splice(6, 0, { pwp: { ident: '(T/D)' }, fpIndex: 5, inAlternate: false });
+    assert.equal(
+        CDUFlightPlanPage.createScrollWindow(mcdu, afterTod, plan, 7, false, -1, 1)[0].altitudeConstraint.trim(),
+        '26440',
+    );
     assert.equal(stepModule.plannedCruiseLevelAtWaypoint(null, [], 1), undefined);
     assert.equal(stepModule.plannedCruiseLevelAtWaypoint(NaN, [], 1), undefined);
 });

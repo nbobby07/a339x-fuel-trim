@@ -328,6 +328,7 @@ export class CDUFlightPlanPage {
       : null;
 
     const rowsCount = Math.min(waypointsAndMarkers.length, maxNumRows);
+    const todIndex = waypointsAndMarkers.findIndex(({ pwp }) => pwp?.ident === '(T/D)');
 
     let useTransitionAltitude = false;
 
@@ -518,6 +519,7 @@ export class CDUFlightPlanPage {
         // These are display values only; no waypoint crossing constraint or VNAV target is written.
         const plannedCruiseLevel =
           mcdu.flightPhaseManager.phase === FmgcFlightPhase.Preflight &&
+          (todIndex < 0 || winI < todIndex) &&
           !inAlternate &&
           !inMissedApproach &&
           !hasAltConstraint &&
