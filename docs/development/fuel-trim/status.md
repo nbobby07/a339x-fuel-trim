@@ -10,14 +10,15 @@
 
 | Area | Status |
 | --- | --- |
-| Source | Implemented six-tank native state integration, bounded engine burn and experimental center/trim transfer, Rust mass/CG, EFB/SD, physical fault effect, persistence and telemetry |
-| Focused tests | PASS; see validation.md |
+| Source | Fuel/trim implementation retained; unit-setting synchronization, SimBrief cruise-step import/edit fixes, and A339 tablet takeoff reports added |
+| Focused tests | PASS: 41 JavaScript/UI checks, 7 Rust fuel checks, C++ model/persistence and deployment fixtures; see validation.md |
 | Baseline aircraft build | PASS; preserved artifact `20260911-122427-e01ce4e8` at upstream base, before fuel integration |
-| Modified aircraft build | PASS at clean source `bdd0439e787d91caeed0ae7099d1d59e1c07b24a`; artifact `20260911-131359-8539b55e` |
+| Modified aircraft build | PASS at clean source `54520ed192847ae0edea785c79773709088a4edc`; artifact `20260911-155547-e2f54165` |
 | Modified package validation | PASS; 855 aircraft files and 3 companion files, complete layout and SHA256 inventory |
 | Local installation | PASS; both packages installed with MSFS closed, every installed file hash verified |
-| Installation backup | No previous A339X packages existed; the external rollback record preserves prior absence, and its restore dry run passes |
-| Simulator load/functional tests | NOT RUN |
+| Installation backup | First record preserves original absence; subsequent deployments back up the preceding packages outside Community |
+| Simulator load/functional tests | User screenshots confirm cockpit load, powered displays and a refueling indication; STEP and report integration in-simulator tests NOT RUN |
+| Full tablet calculator | INCOMPLETE: supplied SimBrief OFP results are supported; fresh native calculations require a usable complete model or supported service integration |
 | Source publication | Feature branch targets the verified personal fork only; the final remote SHA and verification result are recorded in ignored `final-delivery.json` |
 
 The baseline artifact records a dirty source tree because tooling, documentation and an unreferenced new header were present. All tracked aircraft behavior and toolchain files remained unchanged; the new header was not included by any baseline source. The initial directory contained no repository/user changes. Full source and asset clones were preserved while moving to a drive with sufficient space. An interrupted nested asset checkout was completed at its recorded commit.
@@ -26,7 +27,9 @@ Docker initially failed on stale runtime sockets. Only the stopped Docker applic
 
 Setup failures and retries were recorded. The successful baseline used setup, A339X copy and A339X build only. Build wrappers subsequently gained a scoped Cargo clean to avoid stale compiled overrides after timestamp-preserving copies. A separate packaging commit corrects the bundled lock-highlight dependency version. See ignored build records/logs for exact commands, exit codes and local paths.
 
-The installed artifact was built from clean source `bdd0439e787d91caeed0ae7099d1d59e1c07b24a`. Subsequent commits change only deployment checks, their tests and documentation. Final ESLint passes; final EFB/SD/MCDU typechecks reproduce the same 7/7/29 baseline diagnostics with no new errors. The live deployment and restore dry runs pass. The installation is **installed but unverified in MSFS 2024**: no simulator loading, native CG readback or flight test was performed. The exact installed paths and rollback record are in ignored local deployment records; public documents contain no machine-specific paths.
+The original fuel artifact was built from clean source `bdd0439e`; the unit-setting fix was built and installed from `9fde3453`. The flight-planning follow-up is built from `54520ed1`. New source files pass ESLint. EFB typechecking retains the same 7 baseline diagnostics; MCDU retains its existing errors, with none in the new STEP files. Actual React/DOM tests verify report selection, context changes, cancellation and inert source-report text. Browser visual preview was blocked by the browser URL security policy, so no screenshot verification is claimed. The exact installed paths and rollback record are in ignored local deployment records; public documents contain no machine-specific paths.
+
+Docker's ordinary launcher can still hit the upstream socket failure. The guarded project launcher passed two clean restart cycles and a healthy-engine/active-container check. Builds invoke it automatically; the local Docker for A339X shortcut invokes the same helper. Original Docker settings were restored after disabling its optional AI feature proved ineffective. This is a tested workaround, not an upstream Docker fix.
 
 The trim tank arm, direct center/trim test topology, electrical assignments and ideal valve behavior are experimental. Transfer rate is developer-supplied and defaults to zero. There is no validated neo automatic CG schedule, real-aircraft warning/checklist, full trim plumbing, passive trim path or modeled trim electrical load. The cockpit integration gap is covered only by explicitly labelled SDK developer controls and SD diagnostics.
 
