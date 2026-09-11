@@ -75,3 +75,41 @@ No native simulator-control tool was available in this session. A compiled packa
 10. On the ground with engines stopped and refueling inactive, request an explicit save, change fuel intentionally, then request restore. Check status and six-tank readback. Test a valid older five-tank save and an over-capacity older center save; the latter must be rejected without changing native fuel or overwriting the old file. Reload a native saved flight and confirm native quantities are retained.
 
 Save actual logs/screenshots and observations before changing these statuses. Do not treat these procedures as aircraft operating checklists.
+
+## Flight-planning follow-up
+
+The unit-setting fix at `9fde3453` passed the two-instrument regression and was built and installed as artifact `20260911-152244-ae36e4b8`. The user supplied screenshots showing the aircraft loaded, powered displays, and fuel increasing to 24,080 kg during refueling. These observations establish a basic load and refueling indication, not completed engine, CG, failure or flight validation.
+
+STEP ALTS uses the existing FMS cruise-step model, VNAV predictions, STEP AHEAD and pilot FCU actions. SimBrief's explicit `general.stepclimb_string` is now preserved and imported after route expansion. Both the slash chain (`KSEA/0330/AVPUT/0350`) and separated pairs are accepted. Route matching must be unambiguous, and up to four valid steps can be imported. The initial cruise level is not converted into a waypoint constraint. New source checks exercise the actual parser, page edits and FCU handlers. They also reproduce a public [SimBrief JSON fixture](https://github.com/phpvms/phpvms/blob/main/tests/data/simbrief/briefing.json) containing a continuous slash chain.
+
+Edits validate the replacement altitude and the complete sequence. Moving a step to its current waypoint no longer deletes it, and FCU-triggered removal uses FlightPlanService so changes are synchronized. The FL410 ceiling matches the existing A339 FMC; the performance-limited MAX FL indication still applies. OPT STEP and place/distance placement remain unsupported. Planning a step does not authorize or automatically initiate a climb.
+
+Manual check after installation: generate a SimBrief OFP with Detailed Navlog and Plan Stepclimbs enabled, import it, open a cruise waypoint's VERT REV then STEP ALTS, and compare every imported step with the OFP. Edit one altitude, move it to the same fix, then clear it. At the planned step, select the cleared level on the FCU and initiate the climb; record managed-mode behavior and updated predictions. This in-simulator sequence remains NOT RUN.
+
+### Takeoff data: supported report workflow, full calculator incomplete
+
+The A339-only tablet Performance page now exposes a Takeoff tab that fetches the existing user's latest SimBrief OFP using the [documented read endpoint](https://developers.navigraph.com/docs/simbrief/fetching-ofp-data). Generate an A339 OFP with Runway Analysis enabled, import the matching flight into the tablet, then use **Import latest report** and select its runway. The page displays supplied V1/VR/V2, FLEX, configuration and conditions, with the original report as inert text for weight limits, distances and units. Missing or invalid results are not replaced with guessed values. The result is invalidated when the tablet's imported flight, weight, weather or route context changes.
+
+This is **not a complete in-tablet recalculation engine**. The official SimBrief [performance calculator](https://dispatch.simbrief.com/performance) runs separately; changing it may not update a saved OFP's report. Regenerate the OFP before importing refreshed runway analysis. There is no automatic insertion into the MCDU. Current native simulator weight/weather changes do not recalculate this saved report.
+
+Research confirmed A338/A339 calculations in SimBrief's [February 2025 changelog](https://www.simbrief.com/home/index.php?page=changelog). However, the [standalone performance API remains unavailable](https://forum.navigraph.com/t/takeoff-performance-api/15840), and no supported third-party authentication bridge was established for embedding the Coherent calculator. Public Airbus airport-planning charts do not provide a complete FLEX/V-speed model. The disabled local `a339x_takeoff.ts` retains A320-sized tables and is deliberately not enabled. A full native calculator remains blocked by a usable complete data/model source or supported calculation-service integration.
+
+The raw TLR schema is illustrated in [this XML example](https://forum.navigraph.com/t/xml-fetching-tlr/17004). SimBrief staff's [XML/report comparison](https://forum.navigraph.com/t/performance-data-calculation/20726) demonstrates that raw distances can be feet while other samples use metres, and raw QNH can differ from printed QNH units. Therefore the page preserves the report instead of guessing distance or QNH conversions. Mass units are attached only when the raw report weight agrees with the OFP weight and its declared unit.
+
+KSEA runway 16L is the first planned simulator test. The [FAA AIP](https://www.faa.gov/air_traffic/publications/atpubs/aip_html/part3_ad_2.0_washington.html) lists 11,901 ft declared distances, 150 ft width, 432.3 ft threshold elevation and 180 degrees true bearing; the [2025 FAA supplement, page 274](https://aeronav.faa.gov/Upload_313-d/supplements/CS_NW_20250220.pdf) gives 0.6% downhill. Verify current scenery/chart values and actual weather before testing. Automated report fixtures use synthetic speeds and FLEX, not measured KSEA performance or calibration data. No live A339 report or takeoff roll has been verified in this session.
+
+```powershell
+node --test scripts/step-climb/step-climb.test.cjs
+node --test scripts/tests/takeoff-report.test.cjs
+```
+
+### Repeated Docker startup failure
+
+Docker Desktop 4.75 on this Windows host repeatedly failed on inaccessible AF_UNIX socket files, including after a graceful stop. Disabling its optional AI component did not fix it and the original setting was restored. The [upstream issue](https://github.com/docker/desktop-feedback/issues/460) remains unresolved here.
+
+`Start-A339XBuildEnvironment.ps1` is a tested project workaround. If the engine is healthy it returns without touching it. If Desktop is fully stopped, it preserves only the two verified runtime socket directories before starting Docker. It never deletes files, stops Desktop, changes security/settings or replaces a running engine. A failed Desktop with processes still present must first be quit. Two clean stop/start cycles and the active-container guard passed. Build-A339X invokes the helper automatically, and a local **Docker for A339X** desktop shortcut runs it. The ordinary Docker icon can still encounter the upstream failure.
+
+```powershell
+./scripts/fuel-trim/Start-A339XBuildEnvironment.ps1 -WhatIf
+./scripts/fuel-trim/Start-A339XBuildEnvironment.ps1
+```
