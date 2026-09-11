@@ -63,6 +63,7 @@ try {
     $record.logPath = $log
     # No host env-file: setup/build may delete sources when GITHUB_ACTIONS=true.
     $dockerArgs = @('run', '--rm', '-v', "${repo}:/external", '-w', '/external', '--env', 'CI=true', '--env', 'GITHUB_ACTIONS=', $image)
+    Invoke-BuildNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Start-A339XBuildEnvironment.ps1'))
     Invoke-BuildNative docker @('info', '--format', '{{.ServerVersion}}')
     if (-not $SkipSetup) { Invoke-BuildNative docker ($dockerArgs + './scripts/setup.sh') }
     elseif (-not (Test-Path -LiteralPath (Join-Path $repo 'node_modules') -PathType Container)) { throw 'SkipSetup requires existing node_modules from setup.sh.' }
