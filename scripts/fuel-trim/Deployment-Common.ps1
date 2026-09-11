@@ -119,6 +119,20 @@ function Get-A339XDeploymentConfig([string]$ConfigPath) {
     foreach ($candidate in @($candidates) + @($otherConfigs)) {
         foreach ($match in [regex]::Matches((Get-Content -LiteralPath $candidate -Raw), '(?m)^\s*InstalledPackagesPath\s+"([^"]+)"\s*$')) { $roots += Get-A339XFullPath $match.Groups[1].Value }
     }
+    if ($config.ContainsKey('steamAppManifestPath')) {
+        $appManifest = Get-A339XFullPath $config.steamAppManifestPath
+        $steamApps = Split-Path $appManifest -Parent
+        if ((Split-Path $appManifest -Leaf) -ne 'appmanifest_2537590.acf' -or (Split-Path $steamApps -Leaf) -ne 'steamapps') { throw 'Expected the MSFS 2024 Steam app manifest.' }
+        $appText = Get-Content -LiteralPath $appManifest -Raw
+        if ($appText -notmatch '(?m)^\s*"appid"\s+"2537590"\s*$' -or $appText -notmatch '(?m)^\s*"StateFlags"\s+"4"\s*$') { throw 'Steam does not report MSFS 2024 fully installed.' }
+        $installDirs = [regex]::Matches($appText, '(?m)^\s*"installdir"\s+"([^"\\/:]+)"\s*$')
+        if ($installDirs.Count -ne 1 -or $installDirs[0].Groups[1].Value -in @('.', '..')) { throw 'Invalid Steam installation directory.' }
+        $gamePath = Get-A339XFullPath (Join-Path (Join-Path $steamApps 'common') $installDirs[0].Groups[1].Value)
+        if (-not (Test-Path -LiteralPath (Join-Path $gamePath 'FlightSimulator2024.exe') -PathType Leaf)) { throw 'MSFS 2024 executable missing from Steam installation.' }
+        $corePackages = Get-A339XFullPath (Join-Path $gamePath 'Packages')
+        if (-not (Test-Path -LiteralPath $corePackages -PathType Container)) { throw 'Steam core Packages directory missing.' }
+        $roots += $corePackages
+    }
     foreach ($simRoot in $roots) {
         if (Test-A339XInside $backup $simRoot) { throw 'Backups and staging must be outside every discovered simulator package root.' }
     }
@@ -156,6 +170,7 @@ function Assert-A339XDependencies($Config, $Packages) {
             $paths = if ($provided.Count) { @($provided[0].source) } else {
                 @(Join-Path $Config.community $dependency.name)
                 foreach ($root in $Config.packageRoots) {
+                    Join-Path $root $dependency.name
                     foreach ($official in @('Community2024', 'Official', 'Official/OneStore', 'Official/Steam', 'Official2020', 'Official2020/OneStore', 'Official2020/Steam', 'Official2024', 'Official2024/OneStore', 'Official2024/Steam', 'StreamedPackages')) { Join-Path (Join-Path $root $official) $dependency.name }
                 }
             }
@@ -167,7 +182,10 @@ function Assert-A339XDependencies($Config, $Packages) {
                     $versions += [version]($dep.package_version -split '-')[0]
                 }
             }
-            if (-not @($versions | Where-Object { $_ -ge [version]$dependency.package_version }).Count) { throw "Required dependency unavailable or too old: $($dependency.name). Streamed dependencies require local verification before deployment." }
+            if (-not @($versions | Where-Object { $_ -ge [version]$dependency.package_version }).Count) {
+                $found = if ($versions.Count) { ($versions | ForEach-Object { $_.ToString() }) -join ', ' } else { 'none locally verified' }
+                throw "Dependency $($dependency.name) requires >= $($dependency.package_version); found: $found. Deployment blocked."
+            }
         }
     }
 }

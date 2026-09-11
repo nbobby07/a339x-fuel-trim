@@ -39,6 +39,18 @@ try {
     $configPath = Join-Path $fixture 'deployment.json'
     $configData = @{ userCfgPath = $cfg; communityPath = $community; backupRoot = (Join-Path $fixture 'backups') }
     $configData | ConvertTo-Json | Set-Content -LiteralPath $configPath
+    $steamApps = Join-Path $fixture 'steam/steamapps'
+    $corePackages = Join-Path $steamApps 'common/MSFS2024/Packages'
+    $null = New-Item -ItemType Directory -Path $corePackages
+    'fixture' | Set-Content -LiteralPath (Join-Path (Split-Path $corePackages -Parent) 'FlightSimulator2024.exe')
+    $appManifest = Join-Path $steamApps 'appmanifest_2537590.acf'
+    @('"appid" "2537590"', '"StateFlags" "4"', '"installdir" "MSFS2024"') | Set-Content -LiteralPath $appManifest
+    $configData.steamAppManifestPath = $appManifest
+    $configData | ConvertTo-Json | Set-Content -LiteralPath $configPath
+    Assert ((Get-A339XDeploymentConfig $configPath).packageRoots -contains $corePackages) 'Steam core package root was not verified.'
+    '"appid" "1250410"' | Set-Content -LiteralPath $appManifest
+    Expect-Failure { Get-A339XDeploymentConfig $configPath }
+    @('"appid" "2537590"', '"StateFlags" "4"', '"installdir" "MSFS2024"') | Set-Content -LiteralPath $appManifest
     $name = $script:A339XNames[0]
     $artifact = Join-Path $fixture 'artifact'
     $source = Join-Path $artifact "packages/$name"
@@ -95,6 +107,14 @@ try {
     $null = New-Item -ItemType Directory -Path $dependencyPath
     @{ package_version = '1.0.0' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dependencyPath 'manifest.json')
     Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source })
+    $manifestData.dependencies = @(@{ name = 'core-test-package'; package_version = '0.1.129' })
+    $manifestData | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath
+    $coreDependency = Join-Path $corePackages 'core-test-package'
+    $null = New-Item -ItemType Directory -Path $coreDependency
+    @{ package_version = '0.1.13' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDependency 'manifest.json')
+    Expect-Failure { Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source }) }
+    @{ package_version = '0.1.129' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDependency 'manifest.json')
+    Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source })
     Set-Content -LiteralPath $manifestPath -Value $manifestText -NoNewline
     $secondaryCommunity = Join-Path (Split-Path $community -Parent) 'Community2024'
     $duplicate = Join-Path $secondaryCommunity $name
@@ -123,7 +143,7 @@ try {
     Assert-A339XInventory $destination $newHashes
     $null = & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $freshRecord -ConfigPath $configPath
     Assert (-not (Test-Path -LiteralPath $destination)) 'Restore did not remove a package absent before installation.'
-    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, copy-failure rollback, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/present dependency, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
+    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, copy-failure rollback, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/present dependency, verified Steam core package root/version and wrong app rejection, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
 } finally {
     $env:APPDATA = $oldAppData
     $env:LOCALAPPDATA = $oldLocalAppData

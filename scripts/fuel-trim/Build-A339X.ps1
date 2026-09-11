@@ -66,12 +66,16 @@ try {
     Invoke-BuildNative docker @('info', '--format', '{{.ServerVersion}}')
     if (-not $SkipSetup) { Invoke-BuildNative docker ($dockerArgs + './scripts/setup.sh') }
     elseif (-not (Test-Path -LiteralPath (Join-Path $repo 'node_modules') -PathType Container)) { throw 'SkipSetup requires existing node_modules from setup.sh.' }
-    if (-not $Baseline) { Invoke-BuildNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Test-A339XFuel.ps1')) }
     foreach ($generated in @('build-common', 'build-a339x')) {
         $generatedPath = Get-A339XFullPath (Join-Path $repo $generated)
         if (Test-Path -LiteralPath $generatedPath) { $null = Get-A339XInventory $generatedPath }
     }
     Invoke-BuildNative docker ($dockerArgs + './scripts/copy_a339x.sh')
+    Invoke-BuildNative docker ($dockerArgs + @('pnpm', 'run', 'build-a339x:copy-cargo-config'))
+    # copy_a339x.sh preserves source timestamps. A restored override may otherwise
+    # reuse a newer Rust artifact built from different source in these same paths.
+    Invoke-BuildNative docker ($dockerArgs + @('cargo', 'clean', '-p', 'systems', '-p', 'a320_systems', '-p', 'a320_systems_wasm'))
+    if (-not $Baseline) { Invoke-BuildNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Test-A339XFuel.ps1')) }
     Invoke-BuildNative docker ($dockerArgs + @('./scripts/build_a339x.sh', '--no-tty', "-j$Jobs"))
     if ((& git rev-parse HEAD).Trim() -ne $commit) { throw 'HEAD changed during build. Artifact cannot be attributed to one commit.' }
     if ((Get-BuildSourceFingerprint) -ne $record.sourceFingerprint) { throw 'Source content changed during build. Rerun after source edits finish.' }

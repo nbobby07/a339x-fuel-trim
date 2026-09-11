@@ -22,7 +22,18 @@ try {
     if ($imageMatch.Count -ne 1) { throw 'Expected exactly one pinned development image in run.cmd.' }
     $dockerArgs = @('run', '--rm', '-v', "${repo}:/external", '-w', '/external', '--env', 'CI=true', '--env', 'GITHUB_ACTIONS=', $imageMatch[0].Value)
     Invoke-TestNative docker ($dockerArgs + @('bash', '-c', 'set -e; clang++ -std=c++17 -Wall -Wextra -Werror scripts/fuel-trim/fuel-trim-test.cpp -o /tmp/a339x-fuel-trim-test; /tmp/a339x-fuel-trim-test'))
-    Invoke-TestNative docker ($dockerArgs + @('node', '--test', 'scripts/fuel-trim/contracts.test.cjs'))
+    Invoke-TestNative docker ($dockerArgs + @('bash', '-c', 'set -e; clang++ -std=c++17 -Wall -Wextra -Werror -DLOG_LEVEL=0 -Ihdw-a339x/src/wasm/fadec_a339x/src/Fadec -Iflybywire/fbw-common/src/wasm/cpp-msfs-framework/lib scripts/fuel-trim/fuel-state-test.cpp hdw-a339x/src/wasm/fadec_a339x/src/Fadec/FuelConfiguration_A339X.cpp -o /tmp/a339x-fuel-state-test; /tmp/a339x-fuel-state-test'))
+    Invoke-TestNative docker ($dockerArgs + @('node', '--test', 'scripts/fuel-trim/contracts.test.cjs', 'scripts/fuel-trim/refuel.test.cjs'))
+    foreach ($pair in @(
+        @('hdw-a339x/src/wasm/systems/a320_systems/src/fuel/mod.rs', 'build-a339x/src/wasm/systems/a320_systems/src/fuel/mod.rs'),
+        @('hdw-a339x/src/wasm/systems/a320_systems/src/fuel/test.rs', 'build-a339x/src/wasm/systems/a320_systems/src/fuel/test.rs'),
+        @('hdw-a339x-common/src/wasm/systems/systems/src/fuel/mod.rs', 'build-common/src/wasm/systems/systems/src/fuel/mod.rs')
+    )) {
+        if (-not (Test-Path -LiteralPath $pair[1]) -or (Get-FileHash -LiteralPath $pair[0]).Hash -ne (Get-FileHash -LiteralPath $pair[1]).Hash) {
+            throw 'Rust test sources are stale. Run Build-A339X.ps1 to regenerate and validate them before building.'
+        }
+    }
+    Invoke-TestNative docker ($dockerArgs + @('cargo', 'test', '-p', 'a320_systems', '--lib', 'fuel::', '--locked'))
     Invoke-TestNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Test-Deployment.ps1'))
     Write-Output "Fuel and deployment checks passed. Log: $log"
     $exitCode = 0
