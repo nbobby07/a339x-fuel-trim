@@ -1961,7 +1961,7 @@ export abstract class FMCMainDisplay implements FmsDataInterface, FmsDisplayInte
         (isClimbVsDescent && stepLevel >= oldCruiseLevel && stepLevel <= newCruiseLevel) ||
         (!isClimbVsDescent && stepLevel <= oldCruiseLevel && stepLevel >= newCruiseLevel)
       ) {
-        element.cruiseStep = undefined; // TODO call a method on FPS so that we sync this (fms-v2)
+        this.flightPlanService.removeCruiseStep(i);
         this.removeMessageFromQueue(NXSystemMessages.stepAhead.text);
       }
     }
