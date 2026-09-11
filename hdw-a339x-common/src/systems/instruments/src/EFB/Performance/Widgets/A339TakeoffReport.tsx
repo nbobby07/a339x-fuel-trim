@@ -43,6 +43,7 @@ export const A339TakeoffReport = () => {
   );
 
   const load = async () => {
+    if (busy) return;
     const requestId = ++request.current;
     clearTimeout(timer.current);
     setBusy(true);
@@ -202,7 +203,7 @@ export const A339TakeoffReport = () => {
             <p role="alert">This runway has no complete, ordered set of takeoff speeds. Check the OFP limits.</p>
           )}
           {row && (
-            <dl className="grid grid-cols-4 gap-x-6 gap-y-4">
+            <div role="list" className="grid grid-cols-4 gap-x-6 gap-y-4">
               {[
                 ['Flaps', row.flaps],
                 ['Thrust', row.thrust],
@@ -218,12 +219,12 @@ export const A339TakeoffReport = () => {
                 ],
                 ['Limit code', row.limit],
               ].map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd className="mt-1 font-mono text-xl">{value || 'Not reported'}</dd>
+                <div role="listitem" key={label}>
+                  <div>{label}</div>
+                  <div className="mt-1 font-mono text-xl">{value || 'Not reported'}</div>
                 </div>
               ))}
-            </dl>
+            </div>
           )}
           <div className="rounded-md border border-theme-accent p-4">
             <button

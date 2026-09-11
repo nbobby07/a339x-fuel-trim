@@ -263,7 +263,7 @@ test('without DOMParser, React renders report text literally using supported con
                 .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         });
         assert.equal(r.container.querySelector('script,style,img,iframe'), null);
-        assert.equal(r.container.querySelector('select,details,pre'), null);
+        assert.equal(r.container.querySelector('select,details,pre,dl,dt,dd'), null);
         const text = r.container.querySelector('[data-report-text]').textContent;
         assert.match(text, /11901 FT/);
         assert.match(text, /29.99 INHG & TEST/);
