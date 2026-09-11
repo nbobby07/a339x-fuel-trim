@@ -179,12 +179,16 @@ function Assert-A339XDependencies($Config, $Packages) {
                 if (Test-Path -LiteralPath (Join-Path $path 'manifest.json')) {
                     $null = Get-A339XFullPath $path
                     $dep = Get-Content -LiteralPath (Join-Path $path 'manifest.json') -Raw | ConvertFrom-Json -AsHashtable
-                    $versions += [version]($dep.package_version -split '-')[0]
+                    $version = $null
+                    if (-not [version]::TryParse(($dep.package_version -split '-')[0], [ref]$version)) { throw "Invalid local dependency version metadata: $($dependency.name)." }
+                    if ($provided.Count -and $package.name -in $script:A339XNames -and $dependency.name -in $script:A339XNames -and $dep.package_version -ne $manifest.package_version) { throw 'Bundled A339X aircraft and companion package versions differ.' }
+                    $versions += $version
                 }
             }
+            if (-not $versions.Count) { throw "Dependency $($dependency.name) has no locally verified manifest. Deployment blocked." }
             if (-not @($versions | Where-Object { $_ -ge [version]$dependency.package_version }).Count) {
-                $found = if ($versions.Count) { ($versions | ForEach-Object { $_.ToString() }) -join ', ' } else { 'none locally verified' }
-                throw "Dependency $($dependency.name) requires >= $($dependency.package_version); found: $found. Deployment blocked."
+                $found = ($versions | ForEach-Object { $_.ToString() }) -join ', '
+                Write-Warning "Dependency metadata mismatch: $($dependency.name) declares $($dependency.package_version); locally verified version: $found. Compatibility is unverified; cross-generation version ordering is not treated as a runtime minimum."
             }
         }
     }

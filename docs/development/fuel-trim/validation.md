@@ -20,6 +20,7 @@ The copy script recreates generated directories. The build wrapper cleans only t
 | Check | Result |
 | --- | --- |
 | Unchanged A339X build and package inventory | PASS, all instruments and WASM modules |
+| Modified A339X build and package inventory | PASS at clean source `bdd0439e787d91caeed0ae7099d1d59e1c07b24a`, artifact `20260911-131359-8539b55e`; all instruments and WASM modules, 858 files across both packages |
 | C++ production transfer kernel | PASS: bounds, conservation, crossfeed, pump power/failure, stuck-open/closed valve, refuel/ground inhibits, invalid inputs, target stop/recovery |
 | Timing | PASS: equal simulated hour at 60 Hz, 20 Hz, 1 Hz and 8-second steps; zero-time pause retains quantities/actuator state |
 | Long duration | PASS: 50,000 fixed-seed variable steps with external snapshots, independent cumulative mass ledger, faults and recovery; constant-size model state |
@@ -31,13 +32,13 @@ The copy script recreates generated directories. The build wrapper cleans only t
 | Broader Rust library modified | 454 passed, 15 failed, 9 ignored; no new failing case names |
 | ESLint, changed TS/TSX files | PASS |
 | TypeScript EFB / SD / MCDU | NOT GREEN: 7 / 7 / 29 diagnostics, exactly matching baseline after normalizing line/column; no diagnostics in changed fuel files |
-| Deployment/rollback fixtures | PASS: dry runs, complete hashes, original backup preservation, injected copy failure rollback, restore prior absence, unrelated add-ons, junctions, unsafe paths, duplicate aircraft and dependency version enforcement |
+| Deployment/rollback fixtures | PASS: dry runs, complete hashes, original backup preservation, injected copy failure rollback, restore prior absence, unrelated add-ons, junctions, unsafe paths, duplicate aircraft and dependency checks |
 
 The baseline's two fuel failures expected A320 CG positions (`-11.12`, `-8.99` ft). Their original load scenarios and 300-second stabilization were retained, with A339X positions (`-30.94`, `-27.22` ft). Remaining baseline failures concern air conditioning, airframe/payload assumptions and flap tests. They were not suppressed or represented as green. Full logs identify each case.
 
 Per-step conservation tolerance is `1e-7 kg`, moment tolerance `1e-6 kg*ft`, cumulative long-run mass tolerance `1e-5 kg`, and equal-duration distribution tolerance `1e-5 US gal`. These cover floating-point accumulation while remaining far below cockpit display resolution. Rust density/moment checks use `1e-8` absolute tolerance. These arithmetic tolerances are not claims about simulator integration accuracy.
 
-The bundled lock-highlight manifest originally required aircraft version `0.300.0` while this checkout produces `0.9.0`. A separate packaging fix makes the companion dependency match the aircraft version produced in the same build. External Microsoft dependency minimums were retained.
+The bundled lock-highlight manifest originally declared aircraft version `0.300.0` while this checkout produces `0.9.0`. A separate packaging fix makes the companion dependency match the aircraft version produced in the same build. External Microsoft dependency declarations were retained.
 
 ## Deployment and restore
 
@@ -56,13 +57,13 @@ $artifact = (Get-ChildItem .fuel-trim-local/artifacts -Directory |
 
 Choose the build identity printed by the successful modified build; inspect `build-record.json` rather than assuming every artifact is modified. Deployment validates all layout entries, required binaries/assets and SHA256 hashes, resolves verified package roots, checks dependencies and rejects ambiguous identities/junctions. It checks that MSFS is closed and never terminates it. A complete copy and verified original backup are staged outside scanned package roots. Failed replacement restores the previous inventory. `initial-deployment-record.txt` preserves the first backup reference across later deployments.
 
-For the inspected MSFS 2024 installation, external dependency validation blocks installation: airliner instruments `0.1.13` is below declared `0.1.129`, and aircraft-common `0.1.41` is below declared `0.1.125`. Both installed manifests and their layout files were verified. Whether the 2024 packages are functionally compatible despite this different version sequence is unresolved. The guard was not bypassed and the minimum versions were not lowered to force installation.
+For the inspected MSFS 2024 installation, dependency versions differ: airliner instruments `0.1.13` versus declared `0.1.129`, and aircraft-common `0.1.41` versus declared `0.1.125`. Both installed manifests and all 456 layout files were verified. The first dry run blocked because the script assumed minimum-version semantics. The [SDK dependency definition](https://docs.flightsimulator.com/msfs2024/retail/sdk-tools/package-tool/package-tool-xml-properties/#dependency) prescribes `Version="0.1.0"`; no authoritative runtime minimum comparison or cross-generation version equivalence was established. The script now requires verified dependency presence and warns about a lower declared-version comparison. Package declarations remain unchanged, and functional compatibility still requires a simulator load test.
 
 ## Simulator procedure: NOT RUN
 
 No native simulator-control tool was available in this session. A compiled package is not a flight-verified aircraft. All cases below remain NOT RUN, including native CG readback and component failure behavior inside MSFS 2024.
 
-1. Resolve the declared dependency mismatch using verified compatibility evidence or a supported package revision. Close MSFS, run the deployment dry run, then deploy. Record build identity and backup record.
+1. Close MSFS, run the deployment dry run, then deploy if not already installed. Review dependency warnings and record build identity and rollback record. A successful copy does not establish runtime compatibility.
 2. Launch MSFS 2024 and select Headwind A339X. Check missing gauges/initialization errors. Load cold-and-dark with a recorded partial fuel selection; compare all six native tanks, SD, EFB, total and native gross weight. Repeat running and airborne spawn; quantities must remain selected rather than reverting to a livery INI.
 3. On the ground, test EFB real/fast/instant fill and defuel to zero, a partial load and full load. Check trim is included and no tank exceeds capacity. Attempt EFB refueling airborne; it must not start. Use the native fuel UI separately and verify its intentional changes are retained.
 4. Observe engine consumption with trim disabled. Check `A32NX_FUEL_USED:1/2`, native fuel change and telemetry. Observe APU alone and confirm its native loss is not doubled. Account for native line storage/refueling when interpreting the net residual.

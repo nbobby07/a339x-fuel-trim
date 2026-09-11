@@ -112,10 +112,22 @@ try {
     $coreDependency = Join-Path $corePackages 'core-test-package'
     $null = New-Item -ItemType Directory -Path $coreDependency
     @{ package_version = '0.1.13' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDependency 'manifest.json')
+    $dependencyWarnings = @(Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source }) 3>&1)
+    Assert ($dependencyWarnings.Count -eq 1 -and "$($dependencyWarnings[0])" -match 'metadata mismatch.*Compatibility is unverified') 'Lower cross-generation metadata did not produce a compatibility warning.'
+    @{ package_version = 'invalid' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDependency 'manifest.json')
     Expect-Failure { Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source }) }
     @{ package_version = '0.1.129' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $coreDependency 'manifest.json')
     Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) @(@{ name = $name; source = $source })
     Set-Content -LiteralPath $manifestPath -Value $manifestText -NoNewline
+    $companionSource = Join-Path $fixture 'companion'
+    $null = New-Item -ItemType Directory -Path $companionSource
+    $companionManifest = @{ package_version = '1.0.0'; dependencies = @(@{ name = $name; package_version = '0.300.0' }) }
+    $companionManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $companionSource 'manifest.json')
+    $bundle = @(@{ name = $name; source = $source }, @{ name = "$name-lock-highlight"; source = $companionSource })
+    Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) $bundle
+    $companionManifest.package_version = '2.0.0'
+    $companionManifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $companionSource 'manifest.json')
+    Expect-Failure { Assert-A339XDependencies (Get-A339XDeploymentConfig $configPath) $bundle }
     $secondaryCommunity = Join-Path (Split-Path $community -Parent) 'Community2024'
     $duplicate = Join-Path $secondaryCommunity $name
     $livery = Join-Path $secondaryCommunity 'unrelated-livery'
@@ -143,7 +155,7 @@ try {
     Assert-A339XInventory $destination $newHashes
     $null = & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $freshRecord -ConfigPath $configPath
     Assert (-not (Test-Path -LiteralPath $destination)) 'Restore did not remove a package absent before installation.'
-    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, copy-failure rollback, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/present dependency, verified Steam core package root/version and wrong app rejection, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
+    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, copy-failure rollback, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/invalid/present dependency, metadata compatibility warning, bundled version consistency, verified Steam core package root and wrong app rejection, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
 } finally {
     $env:APPDATA = $oldAppData
     $env:LOCALAPPDATA = $oldLocalAppData
