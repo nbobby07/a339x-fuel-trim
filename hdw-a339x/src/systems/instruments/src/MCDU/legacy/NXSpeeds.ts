@@ -760,6 +760,11 @@ export class NXSpeedsUtils {
    * @param {boolean} gearDown true if the gear is down
    */
   static getVs1g(mass, conf, gearDown) {
-    return vs[conf][_correctMass(mass)]();
+    // Interpolate within the 10-tonne table, rather than treating 230.2t as 240t.
+    const position = (Math.min(250, Math.max(130, mass)) - 130) / 10;
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    const lowSpeed = vs[conf][lower]();
+    return lowSpeed + (vs[conf][upper]() - lowSpeed) * (position - lower);
   }
 }

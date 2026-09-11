@@ -23,7 +23,7 @@ try {
     $dockerArgs = @('run', '--rm', '-v', "${repo}:/external", '-w', '/external', '--env', 'CI=true', '--env', 'GITHUB_ACTIONS=', $imageMatch[0].Value)
     Invoke-TestNative docker ($dockerArgs + @('bash', '-c', 'set -e; clang++ -std=c++17 -Wall -Wextra -Werror scripts/fuel-trim/fuel-trim-test.cpp -o /tmp/a339x-fuel-trim-test; /tmp/a339x-fuel-trim-test'))
     Invoke-TestNative docker ($dockerArgs + @('bash', '-c', 'set -e; clang++ -std=c++17 -Wall -Wextra -Werror -DLOG_LEVEL=0 -Ihdw-a339x/src/wasm/fadec_a339x/src/Fadec -Iflybywire/fbw-common/src/wasm/cpp-msfs-framework/lib scripts/fuel-trim/fuel-state-test.cpp hdw-a339x/src/wasm/fadec_a339x/src/Fadec/FuelConfiguration_A339X.cpp -o /tmp/a339x-fuel-state-test; /tmp/a339x-fuel-state-test'))
-    Invoke-TestNative docker ($dockerArgs + @('node', '--test', 'scripts/fuel-trim/contracts.test.cjs', 'scripts/fuel-trim/refuel.test.cjs', 'scripts/tests/datastore.test.cjs', 'scripts/tests/takeoff-report.test.cjs', 'scripts/tests/takeoff-report-ui.test.cjs', 'scripts/step-climb/step-climb.test.cjs'))
+    Invoke-TestNative docker ($dockerArgs + @('node', '--test', 'scripts/fuel-trim/contracts.test.cjs', 'scripts/fuel-trim/refuel.test.cjs', 'scripts/tests/datastore.test.cjs', 'scripts/tests/takeoff-report.test.cjs', 'scripts/tests/takeoff-report-ui.test.cjs', 'scripts/tests/takeoff-speeds.test.cjs', 'scripts/step-climb/step-climb.test.cjs'))
     foreach ($pair in @(
         @('hdw-a339x/src/wasm/systems/a320_systems/src/fuel/mod.rs', 'build-a339x/src/wasm/systems/a320_systems/src/fuel/mod.rs'),
         @('hdw-a339x/src/wasm/systems/a320_systems/src/fuel/test.rs', 'build-a339x/src/wasm/systems/a320_systems/src/fuel/test.rs'),

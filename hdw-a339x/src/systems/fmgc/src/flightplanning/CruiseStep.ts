@@ -21,6 +21,37 @@ export type CruiseStepEntry = {
 // Match the A339X FMC cruise ceiling; performance-limited MAX FL is still shown by STEP ALTS.
 export const MAX_CRUISE_STEP_ALTITUDE = 41000;
 
+/** Planned cruise level from the step waypoint onward, independent of VNAV interpolation. */
+export function plannedCruiseLevelAtWaypoint(
+  initialLevel: number | null,
+  steps: Pick<CruiseStepEntry, 'waypointIndex' | 'toAltitude'>[],
+  waypointIndex: number,
+): number | undefined {
+  if (
+    initialLevel === null ||
+    !Number.isFinite(initialLevel) ||
+    initialLevel < 10 ||
+    initialLevel > MAX_CRUISE_STEP_ALTITUDE / 100
+  ) {
+    return undefined;
+  }
+  let level = initialLevel;
+  let lastIndex = -1;
+  for (const step of steps) {
+    if (
+      step.waypointIndex <= waypointIndex &&
+      step.waypointIndex > lastIndex &&
+      Number.isFinite(step.toAltitude) &&
+      step.toAltitude >= 1000 &&
+      step.toAltitude <= MAX_CRUISE_STEP_ALTITUDE
+    ) {
+      level = step.toAltitude / 100;
+      lastIndex = step.waypointIndex;
+    }
+  }
+  return level;
+}
+
 /** Validate the complete sequence, replacing an existing step at the edited index. */
 export function isCruiseStepInsertionValid(
   steps: Pick<CruiseStepEntry, 'waypointIndex' | 'toAltitude'>[],

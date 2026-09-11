@@ -119,3 +119,15 @@ Docker Desktop 4.75 on this Windows host repeatedly failed on inaccessible AF_UN
 The first installed Takeoff import handler constructed `AbortController` before its error handler or loading-state update. Coherent lacks that API (also noted by the inherited `simbridge/common.ts` timeout helper), so clicking Import could appear to do nothing. The regression suite reproduced the failure when that global was removed. Requests now use a bounded UI timeout and a request identifier; late responses and responses after unmount are ignored without requiring transport cancellation.
 
 The page now uses SimBrief's existing plain `text.tlr_section` instead of parsing `plan_html`, removing its DOMParser dependency. Runway buttons and an explicit report-expansion button replace native select/details/pre elements. UI tests run without AbortController or DOMParser, preserve source text literally, and verify timeout, retry and late-response behavior. Actual updated behavior in MSFS still requires a reload and test.
+
+### Preflight cruise schedule and minimum takeoff speed
+
+The user reported gradual altitude predictions in F-PLN before pushback. During preflight, unconstrained en-route rows now display the initial planned cruise FL until the next explicit step waypoint, then that step's FL. SID/STAR segments, altitude constraints, holds, alternate/missed-approach legs and airborne predictions retain their existing behavior. This is a planned-altitude presentation, not a new waypoint crossing constraint or an alteration of the physical climb model. The actual F-PLN row builder is tested with FL350/370/390 steps and interpolated 36,940-foot predictions, including checks that the plan is not mutated.
+
+The inherited climb model separately produced negative climb time/distance in a local numerical probe at some high-altitude A339 weight conditions. The reported flight's exact FMC state was unavailable after the simulator closed, so this has not been established as the cause of its predictions or corrected here. Airborne VNAV/performance accuracy remains unverified; planned FL presentation does not validate those predictions.
+
+For the user's SimBrief KSEA 16L result (230.2 tonnes, CONF 1, V1/VR/V2 148/155/161), the stall-speed lookup rounded mass up to the 240-tonne row. That made the minimum V2 check 164 knots. `getVs1g` now linearly interpolates the existing 10-tonne table, giving a minimum check of 160 knots in this case. The production FMC warning method is tested with taxi fuel and the supplied speeds; it still rejects lower V1, VR, V2 and an insufficient V2 at a higher weight. Table nodes and bounded endpoints are checked across takeoff flap configurations. The existing control-speed thresholds and table values remain unchanged; this is not a validation of the full aircraft performance model.
+
+```powershell
+node --test scripts/step-climb/step-climb.test.cjs scripts/tests/takeoff-speeds.test.cjs
+```
