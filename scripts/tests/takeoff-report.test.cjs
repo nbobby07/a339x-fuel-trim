@@ -25,7 +25,7 @@ function fixture() {
         destination: { icao_code: 'EHAM' },
         general: { icao_airline: 'TEST', flight_number: '1' },
         params: { units: 'KGS', time_generated: '2026-09-11T12:00:00Z' },
-        text: { plan_html: '<pre>TAKEOFF AND LANDING REPORT\nSYNTHETIC TEST FIXTURE</pre>' },
+        text: { tlr_section: 'TAKEOFF AND LANDING REPORT\nSYNTHETIC TEST FIXTURE' },
         tlr: {
             takeoff: {
                 conditions: {
@@ -69,7 +69,7 @@ test('KSEA16L single-runway report retains source results without inventing conv
     assert.equal(report.runways[0].v2, 150);
     assert.equal(report.runways[0].flex, 50);
     assert.equal(report.altimeter, '29.99');
-    assert.ok(report.ofpHtml.includes('SYNTHETIC TEST FIXTURE'));
+    assert.ok(report.reportText.includes('SYNTHETIC TEST FIXTURE'));
     assert.equal(report.runways[0].length_tora, undefined);
 });
 test('multiple runways retain their own speeds and normalize runway identifiers', () => {
@@ -127,18 +127,17 @@ test('weight units require agreement with the OFP weight; distance and QNH units
     assert.equal(parse(data).weightUnits, '');
     assert.equal(parse(data).altimeter, '29.99');
 });
-test('documented OFP fetch encodes identity, passes cancellation and reports network errors', async () => {
+test('documented OFP fetch encodes identity without AbortSignal and reports network errors', async () => {
     let seen;
     const api = load(async (url, options) => {
         seen = { url: new URL(url), options };
         return { ok: true, json: async () => fixture() };
     });
-    const signal = new AbortController().signal;
-    await api.fetchA339TakeoffReport('name&x=1', '', 'KSEA', signal);
+    await api.fetchA339TakeoffReport('name&x=1', '', 'KSEA');
     assert.equal(seen.url.hostname, 'www.simbrief.com');
     assert.equal(seen.url.searchParams.get('username'), 'name&x=1');
     assert.equal(seen.url.searchParams.has('x'), false);
-    assert.equal(seen.options.signal, signal);
+    assert.equal('signal' in seen.options, false);
     await api.fetchA339TakeoffReport('ignored', '12345', 'KSEA');
     assert.equal(seen.url.searchParams.get('userid'), '12345');
     assert.equal(seen.url.searchParams.has('username'), false);

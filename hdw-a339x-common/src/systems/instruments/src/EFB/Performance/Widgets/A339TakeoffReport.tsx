@@ -10,14 +10,6 @@ import {
   normalizeTakeoffRunway,
 } from '@shared/performance/a339x_takeoff_report';
 
-function reportText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style').forEach((node) => node.remove());
-  const plain = doc.body.textContent ?? '';
-  const start = plain.search(/TAKEOFF (?:AND|&) LANDING REPORT/i);
-  return start < 0 ? plain : plain.slice(start);
-}
-
 export const A339TakeoffReport = () => {
   const flight = useAppSelector((state) => state.simbrief.data);
   const contextKey = JSON.stringify([
@@ -39,32 +31,39 @@ export const A339TakeoffReport = () => {
   const [selectedRunway, setSelectedRunway] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const request = useRef<AbortController>();
+  const [showReport, setShowReport] = useState(false);
+  const request = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(
     () => () => {
-      const controller = request.current;
-      request.current = undefined;
-      controller?.abort();
+      request.current++;
+      clearTimeout(timer.current);
     },
     [],
   );
 
   const load = async () => {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const requestId = ++request.current;
+    clearTimeout(timer.current);
     setBusy(true);
     setError('');
     setReport(undefined);
+    setShowReport(false);
+    // Coherent has no AbortController. Bound the UI wait and ignore obsolete responses.
+    timer.current = setTimeout(() => {
+      if (request.current === requestId) {
+        request.current++;
+        setError('The request timed out. Try importing again.');
+        setBusy(false);
+      }
+    }, 30_000);
     try {
       const next = await fetchA339TakeoffReport(
         NXDataStore.getLegacy('NAVIGRAPH_USERNAME', ''),
         NXDataStore.getLegacy('CONFIG_OVERRIDE_SIMBRIEF_USERID', ''),
         flight.departingAirport,
-        controller.signal,
       );
-      if (controller.signal.aborted) return;
+      if (request.current !== requestId) return;
       if (flight.arrivingAirport && next.destination !== flight.arrivingAirport.toUpperCase()) {
         throw new Error(
           'The latest OFP has a different destination. Import the matching flight into the tablet first.',
@@ -88,14 +87,14 @@ export const A339TakeoffReport = () => {
       setLoadedContext(contextKey);
       setSelectedRunway(normalizeTakeoffRunway(flight.departingRunway) || next.plannedRunway);
     } catch (cause) {
-      if (request.current === controller) {
-        setError(
-          controller.signal.aborted ? 'The request timed out. Try importing again.' : String((cause as Error).message),
-        );
+      if (request.current === requestId) {
+        setError(cause instanceof Error ? cause.message : String(cause));
       }
     } finally {
-      clearTimeout(timeout);
-      if (request.current === controller) setBusy(false);
+      if (request.current === requestId) {
+        clearTimeout(timer.current);
+        setBusy(false);
+      }
     }
   };
 
@@ -173,23 +172,20 @@ export const A339TakeoffReport = () => {
                   : report.generated || 'Not reported'}
               </p>
             </div>
-            <label className="flex items-center gap-3">
-              Runway
-              <select
-                value={selectedRunway}
-                onChange={(event) => setSelectedRunway(event.target.value)}
-                className="rounded-md border border-theme-accent bg-theme-body px-4 py-2 text-theme-text"
-              >
-                {!report.runways.some((runway) => runway.runway === selectedRunway) && (
-                  <option value={selectedRunway}>{selectedRunway || 'Select runway'} · no report</option>
-                )}
-                {report.runways.map((runway) => (
-                  <option key={runway.runway} value={runway.runway}>
-                    {runway.runway}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div role="group" aria-label="Runway" className="flex flex-wrap items-center gap-3">
+              <span>Runway</span>
+              {report.runways.map((runway) => (
+                <button
+                  type="button"
+                  key={runway.runway}
+                  aria-pressed={selectedRunway === runway.runway}
+                  onClick={() => setSelectedRunway(runway.runway)}
+                  className={`rounded-md border border-theme-accent px-3 py-2 ${selectedRunway === runway.runway ? 'bg-theme-highlight text-theme-body' : 'text-theme-text'}`}
+                >
+                  {runway.runway}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-4 gap-4">
             {metrics.map(([label, value, unit]) => (
@@ -229,17 +225,26 @@ export const A339TakeoffReport = () => {
               ))}
             </dl>
           )}
-          <details className="rounded-md border border-theme-accent p-4">
-            <summary className="cursor-pointer font-semibold">
+          <div className="rounded-md border border-theme-accent p-4">
+            <button
+              type="button"
+              aria-expanded={showReport}
+              onClick={() => setShowReport(!showReport)}
+              className="font-semibold"
+            >
               Full report: weight limits, distances and source units
-            </summary>
-            <p className="my-3">
-              Use the report’s printed unit labels. Distance and QNH units can differ from your aircraft settings.
-            </p>
-            <pre className="max-h-96 overflow-auto whitespace-pre text-sm">
-              {reportText(report.ofpHtml) || 'Formatted OFP not supplied. Read the report in SimBrief.'}
-            </pre>
-          </details>
+            </button>
+            {showReport && (
+              <>
+                <p className="my-3">
+                  Use the report’s printed unit labels. Distance and QNH units can differ from your aircraft settings.
+                </p>
+                <div data-report-text className="max-h-96 overflow-auto whitespace-pre font-mono text-sm">
+                  {report.reportText || 'Plain-text report not supplied. Read the report in SimBrief.'}
+                </div>
+              </>
+            )}
+          </div>
         </>
       )}
       {!report && !busy && !error && (

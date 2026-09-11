@@ -60,7 +60,7 @@ function report() {
             { runway: '16L', v1: 140, vr: 145, v2: 150, flex: 50, complete: true },
             { runway: '34R', v1: 141, vr: 146, v2: 151, flex: 45, complete: true },
         ],
-        ofpHtml: '<pre>TAKEOFF AND LANDING REPORT\nTORA 11901 FT\nQNH 29.99 INHG</pre>',
+        reportText: 'TAKEOFF AND LANDING REPORT\nTORA 11901 FT\nQNH 29.99 INHG',
     };
 }
 function rig(overrides = {}) {
@@ -89,21 +89,22 @@ function rig(overrides = {}) {
         '../../Store/store': { useAppSelector: (selector) => selector({ simbrief: { data: flight } }) },
         '@shared/performance/a339x_takeoff_report': {
             normalizeTakeoffRunway: (value) => value,
-            fetchA339TakeoffReport: (_name, _id, airport, signal) =>
+            fetchA339TakeoffReport: (_name, _id, airport) =>
                 new Promise((resolve, reject) => {
-                    requests.push({ resolve, reject, signal, airport });
-                    signal.addEventListener('abort', () => reject(new Error('Aborted')));
+                    requests.push({ resolve, reject, airport });
                 }),
         },
     };
     const context = {
         exports: {},
         OpenBrowser: (url) => browserUrls.push(url),
-        AbortController,
-        DOMParser: dom.window.DOMParser,
         setTimeout: (fn) => {
-            timers.set(++timerId, fn);
-            return timerId;
+            const id = ++timerId;
+            timers.set(id, () => {
+                timers.delete(id);
+                fn();
+            });
+            return id;
         },
         clearTimeout: (id) => timers.delete(id),
         require: (name) => {
@@ -141,9 +142,11 @@ function rig(overrides = {}) {
         },
         select: (value) =>
             act(() => {
-                const select = container.querySelector('select');
-                select.value = value;
-                select.dispatchEvent(new window.Event('change', { bubbles: true }));
+                const button = [...container.querySelectorAll('[aria-label="Runway"] button')].find(
+                    (button) => button.textContent === value,
+                );
+                assert.ok(button, `Missing runway ${value}`);
+                button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
             }),
         unmount: () =>
             act(async () => {
@@ -210,7 +213,7 @@ test('actual React report rejects mismatched destination, registration, flight o
         }
     }
 });
-test('actual React handles in-flight context change, timeout, retry and unmount cancellation', async () => {
+test('without AbortController, import handles timeout, retry, late responses and unmount', async () => {
     const r = rig();
     try {
         await r.start();
@@ -219,39 +222,52 @@ test('actual React handles in-flight context change, timeout, retry and unmount 
         assert.match(r.text(), /tablet flight changed/);
         assert.deepEqual(r.metrics(), []);
         await r.start();
+        const timedOut = r.requests.at(-1);
         await act(async () => {
             [...r.timers.values()][0]();
         });
-        assert.equal(r.requests.at(-1).signal.aborted, true);
         assert.match(r.text(), /timed out/);
         assert.equal(r.container.querySelector('button').disabled, false);
         await r.start();
         await r.complete();
         assert.equal(r.metrics()[0], '141 kt');
         assert.equal(r.container.querySelector('[role=alert]'), null);
+        await act(async () => {
+            timedOut.resolve({ ...report(), airport: 'WRONG' });
+        });
+        assert.equal(r.metrics()[0], '141 kt');
+        assert.doesNotMatch(r.text(), /WRONG/);
         await r.start();
         const pending = r.requests.at(-1);
         await r.unmount();
-        assert.equal(pending.signal.aborted, true);
+        await act(async () => {
+            pending.resolve(report());
+        });
         assert.equal(r.timers.size, 0);
     } finally {
         if (r.container.isConnected) await r.unmount();
     }
 });
-test('actual DOMParser and React render source HTML only as inert text and preserve printed units', async () => {
+test('without DOMParser, React renders report text literally using supported controls', async () => {
     const r = rig();
     try {
         await r.start();
         await r.complete({
             ...report(),
-            ofpHtml:
-                '<style>evil-style</style><script>evilScript()</script><pre>TAKEOFF AND LANDING REPORT\nTORA 11901 FT\nQNH 29.99 INHG &amp; TEST</pre><img src=x onerror="evil()"><iframe srcdoc="<script>evil()</script>"></iframe>',
+            reportText:
+                'TAKEOFF AND LANDING REPORT\nTORA 11901 FT\nQNH 29.99 INHG & TEST\n<script>evil()</script><img src=x onerror="evil()">',
+        });
+        act(() => {
+            r.container
+                .querySelector('[aria-expanded]')
+                .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
         });
         assert.equal(r.container.querySelector('script,style,img,iframe'), null);
-        const text = r.container.querySelector('pre').textContent;
+        assert.equal(r.container.querySelector('select,details,pre'), null);
+        const text = r.container.querySelector('[data-report-text]').textContent;
         assert.match(text, /11901 FT/);
         assert.match(text, /29.99 INHG & TEST/);
-        assert.doesNotMatch(text, /evilScript|evil-style/);
+        assert.match(text, /<script>evil\(\)<\/script>/);
     } finally {
         await r.unmount();
     }

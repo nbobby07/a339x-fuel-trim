@@ -34,7 +34,7 @@ export interface A339TakeoffReport {
   altimeter: string;
   surface: string;
   runways: A339TakeoffRunwayReport[];
-  ofpHtml: string;
+  reportText: string;
 }
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -136,7 +136,7 @@ export function parseA339TakeoffReport(json: unknown, expectedAirport = ''): A33
     altimeter: text(conditions.altimeter),
     surface: text(conditions.surface_condition),
     runways,
-    ofpHtml: text(record(source.text).plan_html, 2_000_000),
+    reportText: text(record(source.text).tlr_section, 2_000_000),
   };
 }
 
@@ -144,14 +144,13 @@ export async function fetchA339TakeoffReport(
   username: string,
   userId: string,
   expectedAirport: string,
-  signal?: AbortSignal,
 ): Promise<A339TakeoffReport> {
   const url = new URL('https://www.simbrief.com/api/xml.fetcher.php');
   if (userId.trim()) url.searchParams.set('userid', userId.trim());
   else if (username.trim()) url.searchParams.set('username', username.trim());
   else throw new Error('Set your SimBrief username or Pilot ID in the tablet settings first.');
   url.searchParams.set('json', '1');
-  const response = await fetch(url.toString(), { headers: { Accept: 'application/json' }, signal });
+  const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`SimBrief could not load the OFP (${response.status}). Try again shortly.`);
   return parseA339TakeoffReport(await response.json(), expectedAirport);
 }

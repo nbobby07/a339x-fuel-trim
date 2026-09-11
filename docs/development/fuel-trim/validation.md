@@ -113,3 +113,9 @@ Docker Desktop 4.75 on this Windows host repeatedly failed on inaccessible AF_UN
 ./scripts/fuel-trim/Start-A339XBuildEnvironment.ps1 -WhatIf
 ./scripts/fuel-trim/Start-A339XBuildEnvironment.ps1
 ```
+
+### Takeoff import browser compatibility
+
+The first installed Takeoff import handler constructed `AbortController` before its error handler or loading-state update. Coherent lacks that API (also noted by the inherited `simbridge/common.ts` timeout helper), so clicking Import could appear to do nothing. The regression suite reproduced the failure when that global was removed. Requests now use a bounded UI timeout and a request identifier; late responses and responses after unmount are ignored without requiring transport cancellation.
+
+The page now uses SimBrief's existing plain `text.tlr_section` instead of parsing `plan_html`, removing its DOMParser dependency. Runway buttons and an explicit report-expansion button replace native select/details/pre elements. UI tests run without AbortController or DOMParser, preserve source text literally, and verify timeout, retry and late-response behavior. Actual updated behavior in MSFS still requires a reload and test.
