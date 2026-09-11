@@ -5,8 +5,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <iomanip>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <sstream>
 #include "FuelTrimModel.hpp"
@@ -75,8 +75,9 @@ bool FuelConfiguration_A339X::saveConfigurationToIni() {
   // The inherited mkdir helper compares the return value with EEXIST instead
   // of errno and creates only one level. Use the same SDK-supported primitive.
   for (auto separator = temporary.find_first_of("/\\", 1); separator != std::string::npos;
-       separator = temporary.find_first_of("/\\", separator + 1)) {
-    if (mkdir(temporary.substr(0, separator).c_str(), 0777) != 0 && errno != EEXIST) return false;
+       separator      = temporary.find_first_of("/\\", separator + 1)) {
+    if (mkdir(temporary.substr(0, separator).c_str(), 0777) != 0 && errno != EEXIST)
+      return false;
   }
   // Check close/flush before replacing the original; the inherited generator does not.
   std::ofstream output(temporary, std::ios::binary | std::ios::trunc);

@@ -52,7 +52,7 @@ The split is exactly `10,979 + 1,646 = 12,625` US gal. It preserves the existing
 
 The complete trim position `-107, 0, 23.5` feet comes from PR 76 and is unvalidated. It must be checked against the aircraft's datum, geometry, and native weight debug display before treating measured CG movement as representative of the real aircraft. The C++ kernel uses its longitudinal component for moment diagnostics.
 
-The existing Rust fuel reader uses a fixed `FUEL_GALLONS_TO_KG` conversion of approximately 3.039075693483925 kg/US gal. The C++ kernel takes density as an input. Matching displayed and native mass therefore depends on the adapter's actual density and the inherited Rust conversion, not merely on having six tanks. The published 0.8 kg/L mass table is a reference density, not a mandate to overwrite the simulator's fuel density.
+The aircraft-specific Rust fuel reader now uses native `FUEL WEIGHT PER GALLON` in kilograms for each tank's mass and sums tank volumes directly. Before a valid density is available, it retains the inherited startup fallback of approximately 3.039075693483925 kg/US gal. After a valid reading, unavailable or invalid density readings retain the last valid value. The C++ kernel receives native density through its adapter. The published 0.8 kg/L mass table is a reference density, not a mandate to overwrite the simulator's fuel density.
 
 ## SDK semantics
 
