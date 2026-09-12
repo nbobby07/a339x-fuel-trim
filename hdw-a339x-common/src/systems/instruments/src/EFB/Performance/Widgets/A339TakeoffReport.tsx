@@ -199,9 +199,7 @@ export const A339TakeoffReport = () => {
             ))}
           </div>
           {!row && <p role="alert">No result for this runway. Do not use the figures from a different runway.</p>}
-          {row && !row.complete && (
-            <p role="alert">This runway has no complete, ordered set of takeoff speeds. Check the OFP limits.</p>
-          )}
+          {row?.unavailableReason && <p role="alert">{row.unavailableReason}</p>}
           {row && (
             <div role="list" className="grid grid-cols-4 gap-x-6 gap-y-4">
               {[

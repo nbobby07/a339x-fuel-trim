@@ -12,7 +12,7 @@ const cache = new Map();
 const reasons = new Proxy({}, { get: (_, key) => key });
 const sdk = { MathUtils: { DEGREES_TO_RADIANS: Math.PI / 180, RADIANS_TO_DEGREES: 180 / Math.PI } };
 
-// Load production prediction modules; replace only simulator interfaces and unrelated dependency wiring.
+// Exercise production prediction modules and selected methods with supplied atmosphere, profiles and simulator interfaces.
 function load(name, from = '') {
     if (name === '@flybywiresim/fbw-sdk' || name === '@microsoft/msfs-sdk') return sdk;
     if (name.endsWith('ApproachPathBuilder'))
@@ -129,7 +129,7 @@ function profile(altitude = 35000) {
     return result;
 }
 
-test('real A339 infeasible climb is rejected before time/distance reversal or fuel gain', () => {
+test('production A339 predictor rejects infeasible climb before time/distance reversal or fuel gain', () => {
     const impossible = strategy.predictToAltitude(35000, 36000, 300, 0.82, 40000 * 2.20462262, 0);
     assert.ok(impossible.timeElapsed < 0 && impossible.distanceTraveled < 0 && impossible.fuelBurned < 0);
     const bad = profile();
@@ -406,6 +406,102 @@ test('rejecting a step rebuilds descent at the retained cruise altitude before j
         () => nonfinite.buildCruiseAndDescentPath(profile(), speedProfile, {}, {}),
         InvalidVnavPredictionError,
     );
+});
+
+test('failed cruise/descent construction cannot finalize a partial profile and recovers after correction', () => {
+    for (const failure of [
+        'missing-start',
+        'missing-approach',
+        'empty-approach',
+        'missing-decel',
+        'missing-tod',
+        'missing-cruise',
+        'empty-cruise',
+        'no-intercept',
+    ]) {
+        let fault = failure;
+        const p = profile();
+        if (fault === 'missing-start') p.checkpoints[0].reason = reasons.AtmosphericConditions;
+        if (fault === 'no-intercept') p.checkpoints[0].distanceFromStart = 600;
+        const before = JSON.stringify(p.checkpoints);
+        const coordinator = new CruiseToDescentCoordinator(
+            observer,
+            {
+                getFinalCruiseAltitude: () => 35000,
+                computeCruisePath: () => {
+                    if (fault === 'missing-cruise') return undefined;
+                    if (fault === 'empty-cruise') return new TemporaryCheckpointSequence();
+                    return new TemporaryCheckpointSequence(checkpoint(), {
+                        ...checkpoint(35000, 500),
+                        remainingFuelOnBoard: 4000,
+                    });
+                },
+            },
+            {
+                computeManagedDescentPath: (sequence) => {
+                    if (fault !== 'missing-tod') {
+                        sequence.push({
+                            ...checkpoint(35000, 500),
+                            reason: reasons.TopOfDescent,
+                            remainingFuelOnBoard: 4000,
+                        });
+                    }
+                },
+            },
+            {
+                computeApproachPath: () => {
+                    if (fault === 'missing-approach') return undefined;
+                    if (fault === 'empty-approach') return new TemporaryCheckpointSequence();
+                    return new TemporaryCheckpointSequence({
+                        ...checkpoint(3000, 1000),
+                        reason: fault === 'missing-decel' ? reasons.AtmosphericConditions : reasons.Decel,
+                        remainingFuelOnBoard: 4000,
+                    });
+                },
+            },
+            config,
+        );
+        const buildAndFinalize = () => {
+            coordinator.buildCruiseAndDescentPath(p, speedProfile, {}, {});
+            p.finalizeProfile();
+        };
+        assert.throws(buildAndFinalize, InvalidVnavPredictionError, failure);
+        assert.equal(p.isReadyToDisplay, false, failure);
+        assert.equal(JSON.stringify(p.checkpoints), before, failure);
+        fault = undefined;
+        p.checkpoints = [checkpoint()];
+        buildAndFinalize();
+        assert.equal(p.isReadyToDisplay, true, failure);
+        assert.ok(
+            p.checkpoints.some((point) => point.reason === reasons.TopOfDescent),
+            failure,
+        );
+    }
+});
+
+test('a present position past TOD still accepts the completed descent without a cruise segment', () => {
+    const p = profile();
+    p.checkpoints[0] = { ...checkpoint(35000, 600), reason: reasons.PresentPosition };
+    const coordinator = new CruiseToDescentCoordinator(
+        observer,
+        {
+            getFinalCruiseAltitude: () => 35000,
+            computeCruisePath: () => assert.fail('Past TOD needs no cruise segment'),
+        },
+        {
+            computeManagedDescentPath: (sequence) =>
+                sequence.push({ ...checkpoint(35000, 500), reason: reasons.TopOfDescent }),
+        },
+        {
+            computeApproachPath: () =>
+                new TemporaryCheckpointSequence({ ...checkpoint(3000, 1000), reason: reasons.Decel }),
+        },
+        config,
+    );
+    coordinator.buildCruiseAndDescentPath(p, speedProfile, {}, {});
+    p.finalizeProfile();
+    assert.equal(p.isReadyToDisplay, true);
+    assert.ok(p.checkpoints.some((point) => point.reason === reasons.Decel));
 });
 
 test('profile eligibility rejects missing or non-finite mass, fuel, position and approach speeds', () => {

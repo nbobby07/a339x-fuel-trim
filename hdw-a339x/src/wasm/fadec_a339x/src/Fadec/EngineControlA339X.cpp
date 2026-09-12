@@ -46,7 +46,7 @@ void EngineControl_A339X::update() {
   }
 
   if (!fadecInitialized) {
-    loadFuelConfigIfPossible();
+    initializeFuelStatePath();
     initializeEngineControlData();
     fadecInitialized = true;
   }
@@ -155,32 +155,31 @@ void EngineControl_A339X::update() {
 // PRIVATE
 // =============================================================================
 
-void EngineControl_A339X::loadFuelConfigIfPossible() {
+void EngineControl_A339X::initializeFuelStatePath() {
 #ifdef PROFILING
-  profilerEnsureFadecIsInitialized.start();
+  profilerInitializeFuelStatePath.start();
 #endif
-  if (!hasLoadedFuelConfig) {
+  if (!fuelStatePathInitialized) {
     bool isSimulationReady = msfsHandlerPtr->getAircraftIsReadyVar();
 
-    // we only receive the data one tick later as we request it via simconnect. But it should be enought to only perform the check after
-    // isSimulationReady as this is set by the JS instruments after spawn
+    // Wait for instrument initialization so SimConnect can return the ATC ID.
     if (isSimulationReady) {
       if (simData.atcIdDataPtr->data().atcID[0] != '\0') {
         atcId = simData.atcIdDataPtr->data().atcID;
-        LOG_INFO("Fadec::EngineControl_A339X::ensureFadecIsInitialized() - received ATC ID: " + atcId);
+        LOG_INFO("Fadec::EngineControl_A339X::initializeFuelStatePath() - received ATC ID: " + atcId);
         fuelConfiguration.setConfigFilename(FILENAME_FADEC_CONF_DIRECTORY + atcId + FILENAME_FADEC_CONF_FILE_EXTENSION);
       } else {
-        LOG_INFO("Fadec::EngineControl_A339X::ensureFadecIsInitialized() - no ATC ID received, taking default: " + atcId);
+        LOG_INFO("Fadec::EngineControl_A339X::initializeFuelStatePath() - no ATC ID received, taking default: " + atcId);
       }
-      // if ATC ID is empty, we take the default and still set hasLoadedFuelConfig to as it won't change anymore
-      hasLoadedFuelConfig = true;
+      // An empty ATC ID keeps the default path.
+      fuelStatePathInitialized = true;
     }
   }
 
 #ifdef PROFILING
-  profilerEnsureFadecIsInitialized.stop();
+  profilerInitializeFuelStatePath.stop();
   if (msfsHandlerPtr->getTickCounter() % 100 == 0) {
-    profilerEnsureFadecIsInitialized.print();
+    profilerInitializeFuelStatePath.print();
   }
 #endif
 }

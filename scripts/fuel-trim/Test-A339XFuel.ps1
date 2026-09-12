@@ -35,6 +35,7 @@ try {
     }
     Invoke-TestNative docker ($dockerArgs + @('cargo', 'test', '-p', 'a320_systems', '--lib', 'fuel::', '--locked'))
     Invoke-TestNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Test-Deployment.ps1'))
+    Invoke-TestNative (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Test-BuildPreflight.ps1'))
     Write-Output "Fuel and deployment checks passed. Log: $log"
     $exitCode = 0
 } catch {

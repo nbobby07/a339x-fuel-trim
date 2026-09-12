@@ -54,20 +54,6 @@ class FadecSimData_A339X {
   };
   DataDefinitionVariablePtr<FuelFeedTankData> fuelFeedTankDataPtr;
 
-  struct FuelTankData {
-    FLOAT64 fuelCenter;    // Gallons
-    FLOAT64 fuelLeftAux;   // Gallons
-    FLOAT64 fuelRightAux;  // Gallons
-    FLOAT64 fuelTrim;      // Gallons
-  };
-  DataDefinitionVector fuelCandAuxDataDef = {
-      {"FUELSYSTEM TANK QUANTITY", 1, UNITS.Gallons}, //
-      {"FUELSYSTEM TANK QUANTITY", 4, UNITS.Gallons}, //
-      {"FUELSYSTEM TANK QUANTITY", 5, UNITS.Gallons}, //
-      {"FUELSYSTEM TANK QUANTITY", 6, UNITS.Gallons}  //
-  };
-  DataDefinitionVariablePtr<FuelTankData> fuelCandAuxDataPtr;
-
   // A single native write moves both ends of the custom transfer together.
   struct TrimTankData {
     FLOAT64 center;
@@ -296,7 +282,6 @@ class FadecSimData_A339X {
     trimTankDataPtr     = dm->make_datadefinition_var<TrimTankData>("FUEL TRIM DATA", trimTankDataDef, NO_AUTO_UPDATE);
     atcIdDataPtr        = dm->make_datadefinition_var<AtcIdData>("ATC ID DATA", atcIdDataDef, NO_AUTO_UPDATE);
     fuelFeedTankDataPtr = dm->make_datadefinition_var<FuelFeedTankData>("FUEL LR DATA", fuelLRDataDef, NO_AUTO_UPDATE);
-    fuelCandAuxDataPtr  = dm->make_datadefinition_var<FuelTankData>("FUEL CAND AUX DATA", fuelCandAuxDataDef, NO_AUTO_UPDATE);
     oilTempDataPtr[L]   = dm->make_datadefinition_var<OliTempData>("OIL TEMP LEFT DATA", oilTempE1DataDef, NO_AUTO_UPDATE);
     oilTempDataPtr[R]   = dm->make_datadefinition_var<OliTempData>("OIL TEMP RIGHT DATA", oilTempE2DataDef, NO_AUTO_UPDATE);
     oilPsiDataPtr[L]    = dm->make_datadefinition_var<OilPsiData>("OIL PSI LEFT DATA", oilPsiE1DataDef, NO_AUTO_UPDATE);

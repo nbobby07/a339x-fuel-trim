@@ -232,7 +232,7 @@ export class CruisePathBuilder {
       return false;
     }
 
-    // Only mark a step that can actually be flown and appended.
+    // Mark the step after its prediction passes validation.
     if (sequence.lastCheckpoint.reason === VerticalCheckpointReason.AtmosphericConditions) {
       sequence.lastCheckpoint.reason = isClimbVsDescent
         ? VerticalCheckpointReason.StepClimb

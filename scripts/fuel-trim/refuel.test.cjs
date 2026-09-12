@@ -120,17 +120,13 @@ test('instant completes in one valid ground tick', () => {
     assert.equal(r.values.get(startKey), false);
     assert.equal(r.values.get('L:A339X_FUEL_EXTERNAL_EDIT_SEQUENCE'), 1);
 });
-test('paused, invalid and airborne requests write nothing in every mode', () => {
+test('paused timesteps and invalid targets write nothing in every mode', () => {
     for (const rate of [0, 1, 2]) {
         for (const dt of [0, -1, NaN, Infinity]) {
             const r = rig(undefined, capacities, rate);
             r.refuel.update(dt);
             assert.equal(r.writes.length, 0);
         }
-        const airborne = rig(undefined, capacities, rate);
-        airborne.values.set('SIM ON GROUND', false);
-        airborne.refuel.update(1000);
-        assert.equal(airborne.writes.length, 0);
         for (let i = 0; i < 6; i++)
             for (const value of [-1, capacities[i] + 0.01, NaN, Infinity]) {
                 const targets = [...capacities];
@@ -141,20 +137,66 @@ test('paused, invalid and airborne requests write nothing in every mode', () => 
             }
     }
 });
-test('inactive and unsafe real/fast conditions inhibit writes', () => {
-    for (const rate of [0, 1])
-        for (const [key, value] of [
-            [startKey, false],
-            ['ENG COMBUSTION:1', true],
-            ['ENG COMBUSTION:2', true],
-            ['GPS GROUND SPEED', 1],
-            ['L:A32NX_ELEC_DC_2_BUS_IS_POWERED', false],
-        ]) {
+test('active refueling cancels on loss of eligibility without fuel writes, then accepts a new request', () => {
+    for (const rate of [0, 1, 2]) {
+        const conditions = [['SIM ON GROUND', false]];
+        if (rate !== 2)
+            conditions.push(
+                ['ENG COMBUSTION:1', true],
+                ['ENG COMBUSTION:2', true],
+                ['GPS GROUND SPEED', 1],
+                ['L:A32NX_ELEC_DC_2_BUS_IS_POWERED', false],
+            );
+        for (const [key, value] of conditions) {
             const r = rig(undefined, capacities, rate);
+            if (rate !== 2) r.refuel.update(1000);
+            assert.equal(r.values.get(startKey), true);
+            const before = r.quantities();
+            const previous = r.values.get(key) ?? 0;
+            const sequence = r.values.get('L:A339X_FUEL_EXTERNAL_EDIT_SEQUENCE');
             r.values.set(key, value);
+            r.writes.length = 0;
             r.refuel.update(1000);
-            assert.equal(r.writes.length, 0);
+            assert.deepEqual(r.writes, [[startKey, 'Bool', false]], `${rate}: ${key}`);
+            assert.deepEqual(r.quantities(), before);
+            assert.equal(r.values.get('L:A339X_FUEL_EXTERNAL_EDIT_SEQUENCE'), sequence);
+            r.values.set(key, previous);
+            r.values.set(startKey, true);
+            r.refuel.update(1000);
+            assert.ok(r.quantities().some((quantity, i) => quantity > before[i]));
         }
+    }
+});
+test('inactive and paused requests preserve their state, including paused eligibility changes', () => {
+    for (const rate of [0, 1, 2]) {
+        const inactive = rig(undefined, capacities, rate);
+        inactive.values.set(startKey, false);
+        inactive.refuel.update(1000);
+        assert.equal(inactive.writes.length, 0);
+        const paused = rig(undefined, capacities, rate);
+        paused.values.set('SIM ON GROUND', false);
+        paused.refuel.update(0);
+        assert.equal(paused.writes.length, 0);
+        assert.equal(paused.values.get(startKey), true);
+        paused.refuel.update(1000);
+        assert.deepEqual(paused.writes, [[startKey, 'Bool', false]]);
+    }
+});
+test('instant ground refueling retains engine/power bypass and batches its sequence before fuel writes', () => {
+    const r = rig(undefined, capacities, 2);
+    r.values.set('ENG COMBUSTION:1', true);
+    r.values.set('L:A32NX_ELEC_DC_2_BUS_IS_POWERED', false);
+    r.refuel.update(1000);
+    assert.deepEqual(r.quantities(), capacities);
+    assert.equal(r.writes[0][0], 'L:A339X_FUEL_EXTERNAL_EDIT_SEQUENCE');
+    assert.deepEqual(r.writes.at(-1), [startKey, 'Bool', false]);
+});
+test('unsupported refueling modes cancel the request without editing tanks', () => {
+    for (const rate of [-1, 3, NaN, Infinity]) {
+        const r = rig(undefined, capacities, rate);
+        r.refuel.update(1000);
+        assert.deepEqual(r.writes, [[startKey, 'Bool', false]]);
+    }
 });
 
 // Exercise the actual EFB event handlers with hook stubs, without a browser or a React test dependency.

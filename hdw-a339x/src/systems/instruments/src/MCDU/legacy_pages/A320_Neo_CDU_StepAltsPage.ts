@@ -101,8 +101,6 @@ export class CDUStepAltsPage {
     return ['{small}OPT STEP:{end}', '{small}ENTER ALT ONLY{end}'];
   }
 
-  // TODO: I think it should not allow entries of step climbs after step descents, but I'm not sure if it rejects it entirely
-  // or gives you an IGNORED.
   /**
    * @param legsWithSteps {FlightPlanLeg[]}
    */

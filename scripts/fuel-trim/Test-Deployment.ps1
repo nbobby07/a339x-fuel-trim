@@ -29,6 +29,11 @@ function New-FixturePackage([string]$Path, [string]$Marker) {
     @{ content = @($files | ForEach-Object { @{ path = $_; size = (Get-Item -LiteralPath (Join-Path $Path $_)).Length; date = 0 } }) } |
         ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $Path 'layout.json')
 }
+function New-PartialFixture([string]$From, [string]$Target) {
+    $relative = 'SimObjects/Airplanes/Headwind_A330neo/aircraft.cfg'
+    $null = New-Item -ItemType Directory -Path (Split-Path (Join-Path $Target $relative) -Parent) -Force
+    Microsoft.PowerShell.Management\Copy-Item -LiteralPath (Join-Path $From $relative) -Destination (Join-Path $Target $relative)
+}
 try {
     $env:APPDATA = Join-Path $fixture 'appdata'
     $env:LOCALAPPDATA = Join-Path $fixture 'localappdata'
@@ -79,16 +84,52 @@ try {
     # Fail exactly one install copy after the old package has been removed. Recovery copies use the real cmdlet.
     $global:A339XFixtureFailDestination = $destination
     $global:A339XFixtureFailOnce = $true
+    $global:A339XFixturePartialCreated = $false
     function Copy-Item {
         param([string]$LiteralPath, [string]$Destination, [switch]$Recurse)
-        if ($global:A339XFixtureFailOnce -and $Destination -eq $global:A339XFixtureFailDestination) { $global:A339XFixtureFailOnce = $false; throw 'Injected installation copy failure.' }
+        if ($global:A339XFixtureFailOnce -and $Destination -eq $global:A339XFixtureFailDestination) {
+            $global:A339XFixtureFailOnce = $false
+            New-PartialFixture $LiteralPath $Destination
+            $global:A339XFixturePartialCreated = $true
+            throw 'Injected installation failure after a partial copy.'
+        }
         Microsoft.PowerShell.Management\Copy-Item -LiteralPath $LiteralPath -Destination $Destination -Recurse:$Recurse
     }
     Expect-Failure { & (Join-Path $PSScriptRoot 'Deploy-A339X.ps1') -ArtifactPath $artifact -ConfigPath $configPath }
     Remove-Item Function:Copy-Item
+    Assert $global:A339XFixturePartialCreated 'Copy failure did not create a partial destination.'
     Assert-A339XInventory $destination $oldHashes
     Assert ((Get-Content -LiteralPath (Join-Path $unrelated 'keep.txt')).Trim() -eq 'untouched') 'Unrelated addon changed.'
     Assert (@(Get-ChildItem -LiteralPath $configData.backupRoot -Filter deployment-record.json -Recurse | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json).result -eq 'failed-restored' }).Count -eq 1) 'Failure rollback record missing.'
+
+    $interrupted = Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json -AsHashtable
+    $interrupted.result = 'prepared'
+    $interrupted | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $recordPath
+    foreach ($partialSource in @($source, $interrupted.packages[0].backup)) {
+        Remove-A339XSelectedPackage $destination $community $name
+        New-PartialFixture $partialSource $destination
+        $partialHashes = Get-A339XInventory $destination
+        Expect-Failure { & (Join-Path $PSScriptRoot 'Deploy-A339X.ps1') -ArtifactPath $artifact -ConfigPath $configPath -WhatIf }
+        & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $recordPath -ConfigPath $configPath -WhatIf
+        Assert-A339XInventory $destination $partialHashes
+
+        $partialFile = Join-Path $destination 'SimObjects/Airplanes/Headwind_A330neo/aircraft.cfg'
+        'tampered' | Set-Content -LiteralPath $partialFile
+        Expect-Failure { & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $recordPath -ConfigPath $configPath }
+        Assert ((Get-Content -LiteralPath $partialFile).Trim() -eq 'tampered') 'Rejected partial restore changed a file.'
+        New-PartialFixture $partialSource $destination
+        $extra = Join-Path $destination 'unrecorded.txt'
+        'unrelated' | Set-Content -LiteralPath $extra
+        Expect-Failure { & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $recordPath -ConfigPath $configPath }
+        Assert (Test-Path -LiteralPath $extra) 'Rejected partial restore removed an unknown file.'
+        Remove-Item -LiteralPath $extra
+        $null = & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $recordPath -ConfigPath $configPath
+        Assert-A339XInventory $destination $oldHashes
+    }
+    Remove-A339XSelectedPackage $destination $community $name
+    $null = New-Item -ItemType Directory -Path $destination
+    $null = & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $recordPath -ConfigPath $configPath
+    Assert-A339XInventory $destination $oldHashes
 
     'unexpected' | Set-Content -LiteralPath (Join-Path $source 'extra.txt')
     Expect-Failure { & (Join-Path $PSScriptRoot 'Deploy-A339X.ps1') -ArtifactPath $artifact -ConfigPath $configPath -WhatIf }
@@ -155,12 +196,12 @@ try {
     Assert-A339XInventory $destination $newHashes
     $null = & (Join-Path $PSScriptRoot 'Restore-A339X.ps1') -RecordPath $freshRecord -ConfigPath $configPath
     Assert (-not (Test-Path -LiteralPath $destination)) 'Restore did not remove a package absent before installation.'
-    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, copy-failure rollback, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/invalid/present dependency, metadata compatibility warning, bundled version consistency, verified Steam core package root and wrong app rejection, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
+    Write-Output 'PASS: deploy/restore WhatIf, install/restore hashes, original backup preservation, partial-copy rollback and recorded recovery, tampered/unknown partial-file rejection, unrelated addon preservation, fresh-install rollback, extra files, same-size tampering, missing/invalid/present dependency, metadata compatibility warning, bundled version consistency, verified Steam core package root and wrong app rejection, duplicate Community2024 package, unrelated livery, unsafe backup, wrong Community, junction rejection.'
 } finally {
     $env:APPDATA = $oldAppData
     $env:LOCALAPPDATA = $oldLocalAppData
     if (Test-Path Function:Copy-Item) { Remove-Item Function:Copy-Item }
-    Remove-Variable -Name A339XFixtureFailDestination, A339XFixtureFailOnce -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable -Name A339XFixtureFailDestination, A339XFixtureFailOnce, A339XFixturePartialCreated -Scope Global -ErrorAction SilentlyContinue
     $resolved = Get-A339XFullPath $fixture
     $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
     if ((Test-A339XInside $resolved $tempRoot) -and (Split-Path $resolved -Leaf) -like 'a339x-deploy-test-*') {

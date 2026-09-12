@@ -1,4 +1,4 @@
-// Actual React 17 and DOMParser checks using existing dependencies; no simulator-performance claim.
+// React DOM tests using the existing test dependencies.
 // node --test scripts/tests/takeoff-report-ui.test.cjs
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -57,8 +57,8 @@ function report() {
         altimeter: '29.99',
         surface: 'dry',
         runways: [
-            { runway: '16L', v1: 140, vr: 145, v2: 150, flex: 50, complete: true },
-            { runway: '34R', v1: 141, vr: 146, v2: 151, flex: 45, complete: true },
+            { runway: '16L', v1: 140, vr: 145, v2: 150, flex: 50 },
+            { runway: '34R', v1: 141, vr: 146, v2: 151, flex: 45 },
         ],
         reportText: 'TAKEOFF AND LANDING REPORT\nTORA 11901 FT\nQNH 29.99 INHG',
     };

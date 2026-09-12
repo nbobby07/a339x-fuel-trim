@@ -13,15 +13,13 @@ Checked September 11, 2026. This document distinguishes published aircraft data 
 | Trim | 6,230 | 4,984 | 6 |
 | Total | 139,090 | 111,272 | 279 |
 
-The current document's table was retrieved through indexed search; the direct PDF download did not open in the research tool. [Issue 56, April 6, 2020](https://www.easa.europa.eu/sites/default/files/dfu/A330%20EASA%20TCDS%20A.004%20-%20Issue%2056.pdf), A330-941 section, page 89, independently contains the same capacities. The wing aggregate does not establish the individual inner and outer tank split or their moment arms.
+The Issue 69 values were checked against the indexed table. [Issue 56, April 6, 2020](https://www.easa.europa.eu/sites/default/files/dfu/A330%20EASA%20TCDS%20A.004%20-%20Issue%2056.pdf), A330-941 section, page 89, independently contains the same capacities. The wing aggregate does not establish the individual inner and outer tank split or their moment arms.
 
 [Airbus A330 Facts and Figures, February 2026](https://mediaassets.airbus.com/pm_38_788_788340-gyrr8y4m44.pdf) also lists 139,090 L for the A330-900. Capacity publications do not establish pump delivery rates, valve timing, transfer priorities, or automatic CG targets.
 
 ## Existing PR 76
 
-[Headwind aircraft PR 76](https://github.com/headwindsim/aircraft/pull/76), "add initial implementation of trim tank logic," was open, draft, and unmerged when checked. Its head was `b68a49fb186ce31e540614ae2b5bbed1989dd432`. There were no discussion comments or submitted reviews. The author identifies the cockpit revamp as necessary for testing and leaves testing instructions TBD.
-
-The PR author is GitHub account [masterrob94](https://github.com/masterrob94), whose public profile names Robin Breitfeld.
+[Headwind aircraft PR 76](https://github.com/headwindsim/aircraft/pull/76), "add initial implementation of trim tank logic," by [masterrob94](https://github.com/masterrob94), was an unmerged draft when checked at `b68a49fb186ce31e540614ae2b5bbed1989dd432`. Its testing instructions were incomplete.
 
 The [actual diff](https://github.com/headwindsim/aircraft/pull/76/files) provides useful precedents for native tank index 6, a trim quantity persistence field, and previous-quantity tracking. It does not implement an automatic CG schedule. It also has material gaps:
 

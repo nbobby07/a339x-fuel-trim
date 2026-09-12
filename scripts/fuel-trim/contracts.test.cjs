@@ -73,14 +73,52 @@ test('Rust readers preserve native mapping, capacities and all three axes', () =
 test('SimConnect struct and data-definition order remain aligned', () => {
     const adapter = read(fadec + 'FadecSimData_A339X.hpp');
     const struct = adapter.match(/struct SimVarsData \{([\s\S]*?)\n  \};/)[1];
-    const fields = [...struct.matchAll(/FLOAT64\s+\w+(?:\[(\d+)\])?\s*;/g)];
-    const count = fields.reduce((sum, field) => sum + (field[1] ? +field[1] : 1), 0);
+    const fields = [...struct.matchAll(/FLOAT64\s+(\w+)(?:\[(\d+)\])?\s*;/g)].flatMap((field) =>
+        field[2] ? Array.from({ length: +field[2] }, (_, index) => `${field[1]}[${index}]`) : [field[1]],
+    );
     const definition = adapter.match(/simVarsDataDef = \{([\s\S]*?)\n  \};/)[1];
     const rows = [...definition.matchAll(/\{"([^"]+)"\s*,\s*(\d+)\s*,\s*UNITS\.(\w+)\s*\}/g)];
-    assert.equal(rows.length, count);
+    assert.equal(rows.length, fields.length);
+    const expected = {
+        airSpeedMach: ['AIRSPEED MACH', [0], 'Mach'],
+        ambientPressure: ['AMBIENT PRESSURE', [0], 'Millibars'],
+        ambientTemperature: ['AMBIENT TEMPERATURE', [0], 'Celsius'],
+        animationDeltaTime: ['ANIMATION DELTA TIME', [0], 'Seconds'],
+        apuFuelConsumption: ['FUELSYSTEM LINE FUEL FLOW', [18], 'Gph'],
+        engineAntiIce: ['ENG ANTI ICE', [1, 2], 'Bool'],
+        engineFuelValveOpen: ['FUELSYSTEM VALVE OPEN', [1, 2], 'Number'],
+        engineIgniter: ['TURB ENG IGNITION SWITCH EX1', [1, 2], 'Number'],
+        engineStarter: ['GENERAL ENG STARTER', [1, 2], 'Bool'],
+        fuelPump1: ['FUELSYSTEM PUMP ACTIVE', [2, 3], 'Number'],
+        fuelPump2: ['FUELSYSTEM PUMP ACTIVE', [5, 6], 'Number'],
+        fuelTankQuantityCenter: ['FUELSYSTEM TANK QUANTITY', [1], 'Gallons'],
+        fuelTankQuantityLeft: ['FUELSYSTEM TANK QUANTITY', [2], 'Gallons'],
+        fuelTankQuantityLeftAux: ['FUELSYSTEM TANK QUANTITY', [4], 'Gallons'],
+        fuelTankQuantityRight: ['FUELSYSTEM TANK QUANTITY', [3], 'Gallons'],
+        fuelTankQuantityRightAux: ['FUELSYSTEM TANK QUANTITY', [5], 'Gallons'],
+        fuelTankQuantityTrim: ['FUELSYSTEM TANK QUANTITY', [6], 'Gallons'],
+        fuelWeightPerGallon: ['FUEL WEIGHT PER GALLON', [0], 'Pounds'],
+        lineToCenterFlow: ['FUELSYSTEM LINE FUEL FLOW', [27, 28], 'Gph'],
+        pressureAltitude: ['PRESSURE ALTITUDE', [0], 'Feet'],
+        simEngineN1: ['TURB ENG N1', [1, 2], 'Percent'],
+        simEngineN2: ['TURB ENG N2', [1, 2], 'Percent'],
+        xFeedValve: ['FUELSYSTEM VALVE OPEN', [3], 'Number'],
+        xfrCenterManual: ['FUELSYSTEM JUNCTION SETTING', [4, 5], 'Number'],
+        xfrValveCenterAuto: ['FUELSYSTEM VALVE OPEN', [11, 12], 'Number'],
+        xfrValveCenterOpen: ['FUELSYSTEM VALVE OPEN', [9, 10], 'Number'],
+        xfrValveOuter1: ['FUELSYSTEM VALVE OPEN', [6, 7], 'Number'],
+        xfrValveOuter2: ['FUELSYSTEM VALVE OPEN', [4, 5], 'Number'],
+        totalWeightPounds: ['TOTAL WEIGHT', [0], 'Pounds'],
+        cgPercent: ['CG PERCENT', [0], 'Percent'],
+        unlimitedFuel: ['UNLIMITED FUEL', [0], 'Bool'],
+    };
     assert.deepEqual(
-        rows.filter((row) => row[1] === 'FUELSYSTEM TANK QUANTITY').map((row) => +row[2]),
-        [1, 2, 4, 3, 5, 6],
+        Object.fromEntries(rows.map((row, index) => [fields[index], [row[1], +row[2], row[3]]])),
+        Object.fromEntries(
+            Object.entries(expected).flatMap(([name, [simvar, indices, unit]]) =>
+                indices.map((index, slot) => [indices.length > 1 ? `${name}[${slot}]` : name, [simvar, index, unit]]),
+            ),
+        ),
     );
     const pair = adapter.match(/trimTankDataDef = \{([\s\S]*?)\n  \};/)[1];
     assert.deepEqual(

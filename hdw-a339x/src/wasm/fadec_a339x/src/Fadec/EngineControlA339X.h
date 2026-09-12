@@ -37,8 +37,8 @@ class EngineControl_A339X {
   // ATC ID for the aircraft used to load and store the fuel levels
   std::string atcId = "A339X";
 
-  // Whether we have already loaded the fuel configuration from the config file
-  bool hasLoadedFuelConfig = false;
+  // Whether the fuel-state path has been selected for this aircraft.
+  bool fuelStatePathInitialized = false;
 
   bool fadecInitialized = false;
 
@@ -113,7 +113,7 @@ class EngineControl_A339X {
   SimpleProfiler profilerUpdateFuel{"Fadec::EngineControl_A339X::updateFuel()", 100};
   SimpleProfiler profilerUpdateThrustLimits{"Fadec::EngineControl_A339X::updateThrustLimits()", 100};
   SimpleProfiler profilerUpdateOil{"Fadec::EngineControl_A339X::updateOil()", 100};
-  SimpleProfiler profilerEnsureFadecIsInitialized{"Fadec::EngineControl_A339X::ensureFadecIsInitialized()", 100};
+  SimpleProfiler profilerInitializeFuelStatePath{"Fadec::EngineControl_A339X::initializeFuelStatePath()", 100};
 #endif
 
   // ===========================================================================
@@ -143,9 +143,9 @@ class EngineControl_A339X {
 
  private:
   /**
-   * @brief Initializes the required data for the engine simulation if it has not been initialized
+   * @brief Selects the fuel-state file after instrument initialization.
    */
-  void loadFuelConfigIfPossible();
+  void initializeFuelStatePath();
 
   /**
    * @brief Initialize the FADEC and Fuel model

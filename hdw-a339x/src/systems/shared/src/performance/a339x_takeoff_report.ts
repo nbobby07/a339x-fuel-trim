@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Headwind Simulations contributors
 // SPDX-License-Identifier: GPL-3.0
 
-/** SimBrief's supported OFP report, not a replacement for its calculation service. */
+/** Takeoff results from a generated SimBrief OFP. */
 export interface A339TakeoffRunwayReport {
   runway: string;
   v1?: number;
@@ -14,7 +14,7 @@ export interface A339TakeoffRunwayReport {
   antiIce: string;
   maxWeight: string;
   limit: string;
-  complete: boolean;
+  unavailableReason?: string;
 }
 
 export interface A339TakeoffReport {
@@ -76,6 +76,7 @@ export function parseA339TakeoffReport(json: unknown, expectedAirport = ''): A33
   const rawRunways = Array.isArray(takeoff.runway) ? takeoff.runway : [takeoff.runway];
   if (rawRunways.length > 100) throw new Error('Unexpected number of runway reports.');
   const runways: A339TakeoffRunwayReport[] = [];
+  const plannedWeight = number(conditions.planned_weight, 1, 1_000_000);
   for (const value of rawRunways) {
     const row = record(value);
     const runway = normalizeTakeoffRunway(row.identifier);
@@ -84,37 +85,34 @@ export function parseA339TakeoffReport(json: unknown, expectedAirport = ''): A33
     const v1 = number(row.speeds_v1, 1, 400);
     const vr = number(row.speeds_vr, 1, 400);
     const v2 = number(row.speeds_v2, 1, 400);
-    const plannedWeight = number(conditions.planned_weight, 1, 1_000_000);
     const maxWeight = number(row.max_weight, 1, 1_000_000);
-    const complete =
-      v1 !== undefined &&
-      vr !== undefined &&
-      v2 !== undefined &&
-      v1 <= vr &&
-      vr <= v2 &&
-      plannedWeight !== undefined &&
-      maxWeight !== undefined &&
-      plannedWeight <= maxWeight;
+    let unavailableReason: string | undefined;
+    if (v1 === undefined || vr === undefined || v2 === undefined || v1 > vr || vr > v2) {
+      unavailableReason = 'The report is missing a complete, ordered set of takeoff speeds.';
+    } else if (plannedWeight === undefined || maxWeight === undefined) {
+      unavailableReason = 'The report is missing the takeoff weight or runway weight limit.';
+    } else if (plannedWeight > maxWeight) {
+      unavailableReason = 'The reported takeoff weight exceeds this runway’s weight limit.';
+    }
     runways.push({
       runway,
-      v1: complete ? v1 : undefined,
-      vr: complete ? vr : undefined,
-      v2: complete ? v2 : undefined,
-      flex: complete ? number(row.flex_temperature, -60, 100) : undefined,
+      v1: unavailableReason ? undefined : v1,
+      vr: unavailableReason ? undefined : vr,
+      v2: unavailableReason ? undefined : v2,
+      flex: unavailableReason ? undefined : number(row.flex_temperature, -60, 100),
       flaps: text(row.flap_setting),
       thrust: text(row.thrust_setting),
       packs: text(row.bleed_setting),
       antiIce: text(row.anti_ice_setting),
       maxWeight: text(row.max_weight),
       limit: text(row.limit_code),
-      complete,
+      unavailableReason,
     });
   }
   if (!runways.length)
     throw new Error('The OFP contains no takeoff runway results. Regenerate it with Runway Analysis enabled.');
   const general = record(source.general);
   const units = text(record(source.params).units).toUpperCase();
-  const reportedTow = number(conditions.planned_weight, 1, 1_000_000);
   const ofpTow = number(record(source.weights).est_tow, 1, 1_000_000);
   return {
     airport,
@@ -128,11 +126,11 @@ export function parseA339TakeoffReport(json: unknown, expectedAirport = ''): A33
     generated: text(record(source.params).time_generated),
     plannedWeight: text(conditions.planned_weight),
     // Only apply the documented OFP mass unit when the raw report TOW agrees with it.
-    weightUnits: reportedTow !== undefined && reportedTow === ofpTow && ['KGS', 'LBS'].includes(units) ? units : '',
+    weightUnits: plannedWeight !== undefined && plannedWeight === ofpTow && ['KGS', 'LBS'].includes(units) ? units : '',
     wind: `${text(conditions.wind_direction) || '---'} / ${text(conditions.wind_speed) || '---'} kt`,
     temperature: text(conditions.temperature),
     // SimBrief can choose QNH and runway-distance units independently of OFP weight units.
-    // Keep its original report available rather than guessing conversions or distance limits.
+    // Preserve the source values when their units are unspecified.
     altimeter: text(conditions.altimeter),
     surface: text(conditions.surface_condition),
     runways,

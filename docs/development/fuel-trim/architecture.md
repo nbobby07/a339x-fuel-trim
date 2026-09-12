@@ -2,14 +2,6 @@
 
 This is a simulator implementation. Automatic A330-900neo CG management is not enabled. The native trim tank is represented, and an explicitly enabled developer controller can move fuel between center and trim. See [references and assumptions](references-and-assumptions.md) for applicability and limitations.
 
-## Implementation sequence
-
-1. Verify the personal fork, pinned submodules and container; build unchanged A339X and preserve its packages.
-2. Retain native tank state and existing native transfers. Replace FADEC's inferred transfer accounting with bounded engine consumption from the current native snapshot.
-3. Split trim capacity out of center, extend Rust mass/CG aggregation and connect EFB/SD quantities.
-4. Add explicit directional trim targets, effective pump/valve faults, external-write coordination, persistence checks and bounded diagnostics.
-5. Run production tests, compare broader regressions against baseline, build and validate packages, then enforce deployment and rollback checks.
-
 ## State ownership
 
 | State/variable | Units | Authoritative owner and writers | Readers | Timing/initialization | Persistence/native interaction |

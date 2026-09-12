@@ -38,7 +38,7 @@ function Get-A339XInventory([string]$Path) {
 
 function Assert-A339XInventory([string]$Path, $Expected) {
     $actual = Get-A339XInventory $Path
-    if (-not $Expected -or $actual.Count -ne $Expected.Count) { throw "File inventory differs: $Path" }
+    if ($null -eq $Expected -or $actual.Count -ne $Expected.Count) { throw "File inventory differs: $Path" }
     foreach ($key in $actual.Keys) {
         if (-not $Expected.Contains($key) -or $Expected[$key] -notmatch '^[a-fA-F0-9]{64}$' -or $actual[$key] -ne $Expected[$key]) { throw "Hash differs: $key" }
     }
@@ -150,6 +150,8 @@ function Assert-A339XDestinations($Config, $Packages) {
       foreach ($item in Get-ChildItem -LiteralPath $scanRoot -Directory -Force) {
         # An add-on-manager link may hide a duplicate identity, so require deliberate resolution first.
         if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Community junction requires manual resolution before deployment: $($item.Name)" }
+        $restoring = @($Packages | Where-Object { $_.name -eq $item.Name -and $_.ContainsKey('restoreInventory') })
+        if ($scanRoot -eq $Config.community -and $restoring.Count -eq 1) { continue }
         $identity = Get-A339XIdentity $item.FullName
         if ($identity -and ($identity -ne $item.Name -or $scanRoot -ne $Config.community)) { throw "Duplicate or renamed A339X package: $($item.FullName)" }
       }
@@ -157,7 +159,10 @@ function Assert-A339XDestinations($Config, $Packages) {
     foreach ($package in $Packages) {
         if ($package.name -notin $script:A339XNames) { throw 'Only verified A339X package names may be replaced.' }
         $destination = Get-A339XFullPath (Join-Path $Config.community $package.name)
-        if ((Test-Path -LiteralPath $destination) -and (Get-A339XIdentity $destination) -ne $package.name) { throw "Destination identity mismatch: $($package.name)" }
+        if (Test-Path -LiteralPath $destination) {
+            if ($package.ContainsKey('restoreInventory')) { Assert-A339XInventory $destination $package.restoreInventory }
+            elseif ((Get-A339XIdentity $destination) -ne $package.name) { throw "Destination identity mismatch: $($package.name)" }
+        }
     }
 }
 
@@ -244,7 +249,7 @@ function Invoke-A339XReplacement($Config, $Packages, [string]$SourceCommit, [str
             Assert-A339XSimulatorClosed
             Assert-A339XDestinations $Config $Packages
             foreach ($entry in $record.packages) {
-                if ($entry.previousHashes) { Assert-A339XInventory $entry.destination $entry.previousHashes }
+                if ($entry.backup) { Assert-A339XInventory $entry.destination $entry.previousHashes }
                 elseif (Test-Path -LiteralPath $entry.destination) { throw 'Destination appeared during staging.' }
                 $touched += $entry
                 Remove-A339XSelectedPackage $entry.destination $Config.community $entry.name

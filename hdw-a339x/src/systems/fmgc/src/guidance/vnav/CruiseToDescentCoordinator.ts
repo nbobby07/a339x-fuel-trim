@@ -58,7 +58,7 @@ export class CruiseToDescentCoordinator {
     );
 
     if (startingPointIndex < 0) {
-      return;
+      throw new InvalidVnavPredictionError('Cruise/descent profile has no starting checkpoint');
     }
 
     let startingPoint = profile.checkpoints[startingPointIndex];
@@ -89,9 +89,8 @@ export class CruiseToDescentCoordinator {
         this.lastEstimatedTimeAtDestination,
       );
 
-      if (descentPath.lastCheckpoint.reason !== VerticalCheckpointReason.Decel) {
-        console.error('[FMS/VNAV] Approach path did not end in DECEL. Discarding descent profile.');
-        return;
+      if (descentPath?.lastCheckpoint?.reason !== VerticalCheckpointReason.Decel) {
+        throw new InvalidVnavPredictionError('Approach path did not end in DECEL');
       }
 
       // Geometric and idle
@@ -102,11 +101,9 @@ export class CruiseToDescentCoordinator {
         this.cruisePathBuilder.getFinalCruiseAltitude(profile.cruiseSteps),
       );
 
-      // @ts-ignore TS thinks it can narrow descentPath.lastCheckpoint.reason to VerticalCheckpointReason.Decel because
-      // of line 71, but this is wrong, as computeManagedDescentPath changes descentPath.
-      if (descentPath.lastCheckpoint.reason !== VerticalCheckpointReason.TopOfDescent) {
-        console.error('[FMS/VNAV] Approach path did not end in T/D. Discarding descent profile.');
-        return;
+      // @ts-ignore computeManagedDescentPath changes the checkpoint reason narrowed by the DECEL check.
+      if (descentPath.lastCheckpoint?.reason !== VerticalCheckpointReason.TopOfDescent) {
+        throw new InvalidVnavPredictionError('Descent path did not end in T/D');
       }
 
       if (descentPath.lastCheckpoint.distanceFromStart < startingPoint.distanceFromStart) {
@@ -124,24 +121,8 @@ export class CruiseToDescentCoordinator {
             descentPath.checkpoints,
           );
 
-          // If we somehow don't find an intercept between climb and descent path, just build the cruise path until end of the path
           if (index < 0) {
-            cruisePath = this.cruisePathBuilder.computeCruisePath(
-              profile,
-              this.acConfig,
-              startingPoint,
-              descentPath.at(0).distanceFromStart,
-              stepClimbStrategy,
-              stepDescentStrategy,
-              speedProfile,
-            );
-
-            console.error(
-              '[FMS/VNAV] Edge case: Flight plan too short. However, no intercept between climb and descent path.',
-            );
-            profile.checkpoints.push(...cruisePath.get());
-
-            return;
+            throw new InvalidVnavPredictionError('Short-route climb and descent paths do not intersect');
           }
 
           // If there is an intercept, place the T/D wherever we need it
@@ -173,9 +154,8 @@ export class CruiseToDescentCoordinator {
         speedProfile,
       );
 
-      if (!cruisePath) {
-        console.error('[FMS/VNAV] Could not coordinate cruise and descent path. Discarding descent profile');
-        return;
+      if (!cruisePath?.lastCheckpoint) {
+        throw new InvalidVnavPredictionError('Cruise path has no ending checkpoint');
       }
 
       todFuelError = cruisePath.lastCheckpoint.remainingFuelOnBoard - descentPath.lastCheckpoint.remainingFuelOnBoard;

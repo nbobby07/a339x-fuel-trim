@@ -38,12 +38,17 @@ export class A32NX_Refuel {
     if (!SimVar.GetSimVarValue('L:A32NX_REFUEL_STARTED_BY_USR', 'Bool')) {
       return;
     }
-    // No mode may edit fuel airborne. Paused/invalid timesteps must not change fuel or completion state.
-    if (!Number.isFinite(deltaTime) || deltaTime <= 0 || !SimVar.GetSimVarValue('SIM ON GROUND', 'Bool')) {
+    // Pause preserves the request. Cancel ineligible requests so FADEC can resume fuel consumption.
+    if (!Number.isFinite(deltaTime) || deltaTime <= 0) {
+      return;
+    }
+    if (!SimVar.GetSimVarValue('SIM ON GROUND', 'Bool')) {
+      SimVar.SetSimVarValue('L:A32NX_REFUEL_STARTED_BY_USR', 'Bool', false);
       return;
     }
     const rate = SimVar.GetSimVarValue('L:A32NX_EFB_REFUEL_RATE_SETTING', 'number');
     if (![RefuelRateNumeric.REAL, RefuelRateNumeric.FAST, RefuelRateNumeric.INSTANT].includes(rate)) {
+      SimVar.SetSimVarValue('L:A32NX_REFUEL_STARTED_BY_USR', 'Bool', false);
       return;
     }
     if (rate !== RefuelRateNumeric.INSTANT) {
@@ -56,6 +61,7 @@ export class A32NX_Refuel {
         SimVar.GetSimVarValue('ENG COMBUSTION:2', 'Bool') ||
         SimVar.GetSimVarValue('GPS GROUND SPEED', 'knots') > 0.1
       ) {
+        SimVar.SetSimVarValue('L:A32NX_REFUEL_STARTED_BY_USR', 'Bool', false);
         return;
       }
     }

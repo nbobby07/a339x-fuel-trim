@@ -18,7 +18,20 @@ $packages = foreach ($entry in $record.packages) {
         if (-not (Test-A339XInside $backup (Split-Path $recordFile -Parent)) -or (Get-A339XIdentity $backup) -ne $entry.name) { throw 'Unverified restore backup.' }
         Assert-A339XInventory $backup $entry.previousHashes
     }
-    @{ name = $entry.name; source = $entry.backup; hashes = $entry.previousHashes }
+    $package = @{ name = $entry.name; source = $entry.backup; hashes = $entry.previousHashes }
+    if (Test-Path -LiteralPath $entry.destination) {
+        $current = Get-A339XInventory $entry.destination
+        $owned = $false
+        foreach ($expected in @($entry.installedHashes, $entry.previousHashes)) {
+            if (-not $expected) { continue }
+            $unmatched = @($current.Keys | Where-Object { -not $expected.Contains($_) -or $expected[$_] -ne $current[$_] })
+            if ($unmatched.Count -eq 0) { $owned = $true; break }
+        }
+        if (-not $owned) { throw "Current package files do not match this deployment record: $($entry.name)" }
+        # Rechecked by the shared destination guard, including under the replacement lock.
+        $package.restoreInventory = $current
+    }
+    $package
 }
 Assert-A339XSimulatorClosed
 Assert-A339XDestinations $config $packages

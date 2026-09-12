@@ -214,7 +214,7 @@ test('SimBrief download preserves explicit step metadata discarded by the shared
     assert.equal(ofp.stepClimbString, 'ORIG/0330/TWO/0350');
     assert.equal(ofp.cruiseAltitude, 33000);
 });
-test('full SimBrief uplink imports cruise steps before done and leaves initial CRZ unchanged', async () => {
+test('uplink imports cruise steps before completion and retains the initial cruise altitude', async () => {
     const r = adapterRig();
     r.ofp.stepClimbString = 'ORIG/0330/TWO/0350/FOUR/0370';
     await r.adapter.uplinkFlightPlanFromSimbrief(r.fms, r.service, 0, r.ofp, {});
@@ -222,7 +222,7 @@ test('full SimBrief uplink imports cruise steps before done and leaves initial C
     assert.equal(r.imported.cruiseFlightLevel, 330);
     assert.equal(r.warnings.length, 0);
 });
-test('SimBrief resolves lat/long and expanded airway fixes against final route positions', async () => {
+test('SimBrief matches named and lat/long steps against the supplied route', async () => {
     const r = adapterRig([leg('ORIG', 0), leg('AIRWAY', 1), leg('LL01', 10), leg('END', 12)]);
     r.ofp.navlog = [{ ident: '50N010E', type: 'ltlg', pos_lat: '50', pos_long: '10' }];
     r.ofp.stepClimbString = 'ORIG/0330 AIRWAY/0350 50N010E/0370';

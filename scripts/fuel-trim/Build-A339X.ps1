@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [switch]$Baseline,
+    [string]$BaselineRef = 'upstream/main',
     [switch]$SkipSetup,
     [ValidateRange(1, 32)][int]$Jobs = 4
 )
@@ -34,6 +35,16 @@ function Get-BuildSourceFingerprint {
     }
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))))
 }
+function Assert-BaselineSource([string]$Ref, [string]$SourceCommit) {
+    $baselineCommit = & git rev-parse --verify --end-of-options "$Ref^{commit}"
+    if ($LASTEXITCODE -ne 0 -or $baselineCommit -notmatch '^[a-fA-F0-9]{40}$') { throw "Cannot resolve baseline ref: $Ref" }
+    if ($SourceCommit -ne $baselineCommit) { throw "Baseline requires HEAD at $Ref ($baselineCommit)." }
+    $changed = @(& git diff $baselineCommit --name-only -- . ':!docs/development/fuel-trim' ':!scripts/fuel-trim' ':!.gitignore')
+    if ($LASTEXITCODE -ne 0 -or $changed.Count) { throw 'Baseline requires unchanged aircraft source and toolchain.' }
+    $untracked = @(& git ls-files --others --exclude-standard -- . ':!docs/development/fuel-trim' ':!scripts/fuel-trim' ':!.gitignore')
+    if ($LASTEXITCODE -ne 0 -or $untracked.Count) { throw 'Baseline contains untracked aircraft or toolchain files.' }
+    return $baselineCommit
+}
 Push-Location $repo
 try {
     $null = Get-Command git, docker -ErrorAction Stop
@@ -45,9 +56,10 @@ try {
     $record.sourceChanges = $changes
     $record.sourceDirty = $changes.Count -gt 0
     $record.sourceFingerprint = Get-BuildSourceFingerprint
-    $tracked = @(& git diff HEAD --name-only)
-    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect tracked changes.' }
-    if ($Baseline -and @($tracked | Where-Object { $_ -notmatch '^(docs/development/fuel-trim/|scripts/fuel-trim/|\.gitignore$)' }).Count) { throw 'Baseline requires unchanged tracked aircraft source and toolchain.' }
+    if ($Baseline) {
+        $record.baselineRef = $BaselineRef
+        $record.baselineSourceCommit = Assert-BaselineSource $BaselineRef $commit
+    }
     $submodules = @(& git submodule status --recursive)
     if ($LASTEXITCODE -ne 0 -or @($submodules | Where-Object { $_ -match '^[-+U]' }).Count) { throw 'Initialize all submodules at their recorded revisions before building.' }
     $changedSubmodules = @(& git diff HEAD --name-only --ignore-submodules=untracked -- flybywire large-files)

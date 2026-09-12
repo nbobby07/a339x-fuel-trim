@@ -98,16 +98,18 @@ test('empty XML tags, malformed speeds and overweight results never become zero 
         const data = fixture();
         data.tlr.takeoff.runway.speeds_v1 = invalid;
         const row = parse(data).runways[0];
-        assert.equal(row.complete, false);
+        assert.match(row.unavailableReason, /ordered set/);
         assert.equal(row.v1, undefined);
         assert.equal(row.flex, undefined);
     }
     const data = fixture();
     data.tlr.takeoff.runway.speeds_v1 = '151';
-    assert.equal(parse(data).runways[0].complete, false);
+    assert.match(parse(data).runways[0].unavailableReason, /ordered set/);
     data.tlr.takeoff.runway.speeds_v1 = '140';
     data.tlr.takeoff.runway.max_weight = '230000';
-    assert.equal(parse(data).runways[0].complete, false);
+    assert.match(parse(data).runways[0].unavailableReason, /exceeds.*weight limit/);
+    delete data.tlr.takeoff.runway.max_weight;
+    assert.match(parse(data).runways[0].unavailableReason, /missing.*weight/);
 });
 test('missing FLEX is not guessed as TOGA, and duplicate runways are rejected', () => {
     const data = fixture();
