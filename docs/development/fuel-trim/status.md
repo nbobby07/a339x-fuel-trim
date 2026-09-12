@@ -11,9 +11,9 @@
 | Area | Status |
 | --- | --- |
 | Source | Fuel/trim implementation retained; unit-setting synchronization, SimBrief cruise-step import/edit fixes, and A339 tablet takeoff reports added |
-| Focused tests | PASS: 41 JavaScript/UI checks, 7 Rust fuel checks, C++ model/persistence and deployment fixtures; see validation.md |
+| Focused tests | PASS: 43 JavaScript/UI checks, 7 Rust fuel checks, C++ model/persistence and deployment fixtures; see validation.md |
 | Baseline aircraft build | PASS; preserved artifact `20260911-122427-e01ce4e8` at upstream base, before fuel integration |
-| Modified aircraft build | PASS at clean source `707bca5c79e7ac70da5ff20fef70531f10266a6c`; artifact `20260911-163321-f7e56cff` |
+| Modified aircraft build | PASS at clean source `9e633fb27b08820fd17596523d3d32aeb2f83bed`; artifact `20260911-165733-60d3bd66` |
 | Modified package validation | PASS; 855 aircraft files and 3 companion files, complete layout and SHA256 inventory |
 | Local installation | PASS; both packages installed with MSFS closed, every installed file hash verified |
 | Installation backup | First record preserves original absence; subsequent deployments back up the preceding packages outside Community |
@@ -36,3 +36,5 @@ The trim tank arm, direct center/trim test topology, electrical assignments and 
 MSFS 2024 dependency evidence: installed airliner instruments `0.1.13` versus declared `0.1.129`; installed aircraft common `0.1.41` versus declared `0.1.125`. Both installed packages and all their layout files are present. The initial deployment guard treated these values as runtime minimums without sufficient evidence. It was corrected after reviewing the SDK: preserve the manifest, require local dependency presence, and warn about the version mismatch. The user has since demonstrated aircraft loading; complete runtime compatibility remains unverified.
 
 No packaged binaries or restricted asset changes are part of the feature commits. No upstream pull request or release is created. Machine paths, dependency manifest hashes, package inventories, logs and deployment settings stay in `.fuel-trim-local`.
+
+Preflight cruise schedule presentation and takeoff stall-speed interpolation are built at 9e633fb2. The complete MCDU typecheck retains exactly its 29 baseline diagnostics; no new diagnostics occur in the changed files. The existing NXSpeeds file retains its pre-existing lint diagnostics, with none added by the lookup change. Physical climb-model accuracy is a separate unresolved issue documented in validation.md. Live simulator confirmation is pending.
