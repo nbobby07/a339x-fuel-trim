@@ -131,3 +131,21 @@ For the user's SimBrief KSEA 16L result (230.2 tonnes, CONF 1, V1/VR/V2 148/155/
 ```powershell
 node --test scripts/step-climb/step-climb.test.cjs scripts/tests/takeoff-speeds.test.cjs
 ```
+
+### Numerical integrity and operational review
+
+This review supersedes the preflight planned-FL presentation above. The ground-only F-PLN override and its helper were removed: no applicable primary evidence supported replacing climb predictions before T/C with planned cruise levels. The inherited display now receives validated predictions or its existing unavailable state. Explicit STEP entries remain discrete; a valid profile holds a level until the step point, models the climb segment and then holds the next level.
+
+Forward climb/cruise segments reject non-finite or negative time, distance and fuel burn, solver error flags, zero-time altitude changes and stalled/capped iterations. Cruise step rejection does not leave a false step marker, and descent is rebuilt at the retained cruise altitude before profiles join. Finalized profiles reject non-finite fields while permitting legitimate negative timestamps from reverse-built descent. Acceleration scaling now uses remaining/full distance; cruise acceleration uses current fuel and altitude; step descent receives Mach rather than CAS in its Mach argument. Thrust-limit table endpoints no longer divide by zero or index below the table.
+
+The VNAV boundary clears stale profiles, coordinator estimates, leg speed predictions, guidance targets, speed margins and T/D annunciation on failure, including a first-run failure. It retries on later recomputation. A missing green-dot speed clears an old expedite profile. Leg groundspeed predictions use the existing signed wind forecast for the applicable phase, with unavailable converted speeds withheld. These are simulation failure-handling policies, not proof of the exact Honeywell P5A failure indications or certified guidance behavior.
+
+Takeoff speed lookups now use scalar interpolation and supplied-table endpoints. Invalid mass/configuration/pressure inputs are unavailable rather than exceptions or a silently successful check. Minimum speed comparisons preserve the unrounded margins; unavailable checks prompt the existing CHECK TAKE OFF DATA message without repeated insertion every tick. The supplied KSEA 230.2t CONF 1 V2 of 161 passes the 160.5504-knot computed minimum; 160 fails. Above-table endpoint holding is an inherited bounded simulation policy, not verified performance data.
+
+Production-method tests cover valid and infeasible climb paths, 120 combinations of weight/altitude/temperature/Mach, step plateaus and rejection, acceleration clipping, cruise/descent joins, invalid inputs, clearing/recovery, signed wind and speed-warning transitions. The sweep verifies numerical integrity only. The underlying performance coefficients, automatic trim model, complete aircraft system behavior and actual simulator response still require calibration and applicable operational documentation. See [operational evidence](operational-evidence.md) for sources, applicability and remaining work.
+
+Compatibility corrections restore the pinned SDK's secondary-flight-plan bit and ACARS status name, the shared airport-map export and datastore window type, and the active-plan callsign getter. Duplicate FMC imports and a constant-one drag multiplier were removed without changing numeric drag results. The legacy fuel-prediction module now uses the installed mathjs API with checked matrix narrowing; 22 regression cases preserve prior rounded results, including signed zero. MCDU TypeScript checking passes without diagnostics. New/changed code passes focused lint; existing formatting/unused-variable diagnostics in four legacy files are unchanged from baseline.
+
+```powershell
+node --test scripts/tests/vnav-validity.test.cjs scripts/tests/takeoff-speeds.test.cjs scripts/step-climb/step-climb.test.cjs
+```

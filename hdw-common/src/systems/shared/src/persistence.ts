@@ -4,6 +4,12 @@
 
 import { MutableSubscribable, Subject } from '@microsoft/msfs-sdk';
 
+declare global {
+  interface Window {
+    NXDATASTORE_SUBJECT_MAP: Map<string, Subject<any>> | undefined;
+  }
+}
+
 export type DataStoreSettingKey = keyof NXDataStoreSettings & string;
 type DataStoreSettingValue = string | number | boolean;
 
