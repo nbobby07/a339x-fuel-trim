@@ -11,13 +11,13 @@
 | Area | Status |
 | --- | --- |
 | Source | Fuel/trim implementation retained; unit-setting synchronization, SimBrief cruise-step import/edit fixes, and A339 tablet takeoff reports added |
-| Focused tests | PASS: 43 JavaScript/UI checks, 7 Rust fuel checks, C++ model/persistence and deployment fixtures; see validation.md |
+| Focused tests | PASS: 62 JavaScript/UI checks, 7 Rust fuel checks, C++ model/persistence and deployment fixtures; see validation.md |
 | Baseline aircraft build | PASS; preserved artifact `20260911-122427-e01ce4e8` at upstream base, before fuel integration |
-| Modified aircraft build | PASS at clean source `9e633fb27b08820fd17596523d3d32aeb2f83bed`; artifact `20260911-165733-60d3bd66` |
+| Modified aircraft build | PASS at clean source `6f81f9b70dd0eee2723c093a80af14dd4bff6868`; artifact `20260911-173741-7a94012f` |
 | Modified package validation | PASS; 855 aircraft files and 3 companion files, complete layout and SHA256 inventory |
 | Local installation | PASS; both packages installed with MSFS closed, every installed file hash verified |
 | Installation backup | First record preserves original absence; subsequent deployments back up the preceding packages outside Community |
-| Simulator load/functional tests | User screenshots confirm cockpit and Takeoff page load; reported unresponsive Import was reproduced and fixed in tests. Updated import and STEP behavior in MSFS remain unverified |
+| Simulator load/functional tests | User screenshots confirm cockpit and Takeoff page load; reported unresponsive Import was reproduced and fixed in tests. Updated import, STEP and robustness behavior in MSFS remain unverified |
 | Full tablet calculator | INCOMPLETE: supplied SimBrief OFP results are supported; fresh native calculations require a usable complete model or supported service integration |
 | Source publication | Feature branch targets the verified personal fork only; the final remote SHA and verification result are recorded in ignored `final-delivery.json` |
 
@@ -27,7 +27,7 @@ Docker initially failed on stale runtime sockets. Only the stopped Docker applic
 
 Setup failures and retries were recorded. The successful baseline used setup, A339X copy and A339X build only. Build wrappers subsequently gained a scoped Cargo clean to avoid stale compiled overrides after timestamp-preserving copies. A separate packaging commit corrects the bundled lock-highlight dependency version. See ignored build records/logs for exact commands, exit codes and local paths.
 
-The original fuel artifact was built from clean source `bdd0439e`; the unit-setting fix was built and installed from `9fde3453`. The flight-planning follow-up was built from `54520ed1`, followed by the Coherent import fix at `707bca5c`. New source files pass ESLint. EFB typechecking retains the same 7 baseline diagnostics; MCDU retains its existing errors, with none in the new STEP files. Actual React/DOM tests verify report selection, context changes, timeout/retry, ignored late responses and inert source-report text without AbortController or DOMParser. Browser visual preview was blocked by the browser URL security policy, so no automated screenshot verification is claimed. The exact installed paths and rollback record are in ignored local deployment records; public documents contain no machine-specific paths.
+The original fuel artifact was built from clean source `bdd0439e`; the unit-setting fix was built and installed from `9fde3453`. The flight-planning follow-up was built from `54520ed1`, followed by the Coherent import fix at `707bca5c`. New source files pass ESLint. At that stage EFB typechecking retained seven baseline diagnostics and MCDU retained 29; the current results are recorded below. Actual React/DOM tests verify report selection, context changes, timeout/retry, ignored late responses and inert source-report text without AbortController or DOMParser. Browser visual preview was blocked by the browser URL security policy, so no automated screenshot verification is claimed. The exact installed paths and rollback record are in ignored local deployment records; public documents contain no machine-specific paths.
 
 Docker's ordinary launcher can still hit the upstream socket failure. The guarded project launcher passed two clean restart cycles and a healthy-engine/active-container check. Builds invoke it automatically; the local Docker for A339X shortcut invokes the same helper. Original Docker settings were restored after disabling its optional AI feature proved ineffective. This is a tested workaround, not an upstream Docker fix.
 
@@ -37,4 +37,4 @@ MSFS 2024 dependency evidence: installed airliner instruments `0.1.13` versus de
 
 No packaged binaries or restricted asset changes are part of the feature commits. No upstream pull request or release is created. Machine paths, dependency manifest hashes, package inventories, logs and deployment settings stay in `.fuel-trim-local`.
 
-Preflight cruise schedule presentation and takeoff stall-speed interpolation are built at 9e633fb2. The complete MCDU typecheck retains exactly its 29 baseline diagnostics; no new diagnostics occur in the changed files. The existing NXSpeeds file retains its pre-existing lint diagnostics, with none added by the lookup change. Physical climb-model accuracy is a separate unresolved issue documented in validation.md. Live simulator confirmation is pending.
+The robustness pass is built at 6f81f9b7. It removes the unsupported ground-only flight-level display, rejects impossible VNAV computations, clears stale guidance and indications, repairs step/acceleration handling, strengthens minimum-speed checks and fixes SDK/mathjs compatibility errors. MCDU typechecking now passes with zero diagnostics; shared EFB diagnostics decreased from seven to three existing A320/SU95 component errors. Focused lint passes, with four legacy files retaining identical baseline formatting/unused-variable diagnostics. The 120-case numerical sweep and 22 fuel-polynomial regression cases are not performance calibration. Full FCOM conformity, full native takeoff calculation, automatic trim behavior and live simulator validation remain incomplete; see operational-evidence.md.
